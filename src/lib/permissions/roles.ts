@@ -22,7 +22,8 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
     name: "Owner",
     description: "Full access to everything in the organization.",
     defaultAllHostels: true,
-    permissions: ALL_PERMISSIONS,
+    // "My tasks" is the staff work queue; owners use the dashboard instead.
+    permissions: without("tasks.view"),
   },
   {
     key: "ADMIN",

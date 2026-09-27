@@ -65,6 +65,7 @@ npm run dev                 # http://localhost:3000
 | `EMAIL_FROM` | prod | Default sender |
 | `REQUIRE_EMAIL_VERIFICATION` | no | `true` to block sign-in until the email is verified |
 | `CRON_SECRET` | prod | Bearer secret for `/api/cron/daily` |
+| `SALES_EMAIL` | no | Inbox for "Book a demo" requests (defaults to `EMAIL_FROM`) |
 
 ### Database
 
@@ -102,6 +103,7 @@ All demo accounts use the password **`Demo@12345`**. Never use these in producti
 | `npm run lint` | ESLint |
 | `npm run typecheck` | Route type generation + `tsc --noEmit` |
 | `npm test` | Integration tests (needs `TEST_DATABASE_URL`) |
+| `node scripts/smoke.mjs` | End-to-end smoke test of every role against a running, seeded server (`BASE_URL=…`) |
 
 ## Architecture
 

@@ -374,7 +374,7 @@ export function DataTable<T>(props: DataTableProps<T>) {
           </span>
           <div className="flex items-center gap-2">
             <Select value={String(pageSize)} onValueChange={(v) => url.set({ pageSize: v === "20" ? null : v })}>
-              <SelectTrigger size="sm" className="w-24" aria-label="Rows per page">
+              <SelectTrigger size="sm" className="w-30" aria-label="Rows per page">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

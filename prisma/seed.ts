@@ -135,6 +135,14 @@ async function main() {
     }
   }
 
+  // Property existed before the first residents arrived (keeps occupancy trends realistic).
+  const opened = new Date(`${monthStart(-7)}T00:00:00Z`);
+  const backdate = { where: { organizationId: org.id }, data: { createdAt: opened } };
+  await prisma.hostel.updateMany(backdate);
+  await prisma.floor.updateMany(backdate);
+  await prisma.room.updateMany(backdate);
+  await prisma.bed.updateMany(backdate);
+
   console.log("→ Team members");
   await member(ctx, "manager@demo-hostels.dev", "Adnan Admin", "ADMIN");
   await member(ctx, "accounts@demo-hostels.dev", "Nadia Accountant", "ACCOUNTANT");
@@ -286,10 +294,10 @@ async function main() {
       const scale = hostel.id === isb.id ? 1 : 0.7;
       const base = monthStart(offset);
       const items = [
-        ["electricity", 85000, "IESCO", "Monthly electricity bill"],
+        ["electricity", 45000, "IESCO", "Monthly electricity bill"],
         ["gas", 18000, "SNGPL", "Gas bill"],
         ["internet", 12000, "Nayatel", "Fiber internet"],
-        ["food", 160000, "Metro Cash & Carry", "Mess groceries"],
+        ["food", 70000, "Metro Cash & Carry", "Mess groceries"],
         ["cleaning", 9000, "CleanPro", "Cleaning supplies"],
         ["maintenance", 15000, "Local contractor", "Plumbing and repairs"],
       ] as const;

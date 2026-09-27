@@ -33,7 +33,7 @@ export function WizardShell({
 }) {
   const step = steps[current]!;
   return (
-    <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
       <nav aria-label="Steps" className="hidden lg:block">
         <ol className="sticky top-20 flex flex-col gap-1">
           {steps.map((s, i) => {
@@ -71,7 +71,7 @@ export function WizardShell({
         </ol>
       </nav>
 
-      <section className="flex min-h-[60dvh] flex-col rounded-xl border bg-card">
+      <section className="flex min-h-[60dvh] min-w-0 flex-col rounded-xl border bg-card">
         <header className="border-b px-4 py-4 sm:px-6">
           <div className="mb-3 flex items-center justify-between gap-3 text-xs text-muted-foreground lg:hidden">
             <span className="tabular">

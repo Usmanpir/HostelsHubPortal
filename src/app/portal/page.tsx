@@ -96,12 +96,10 @@ export default async function PortalHomePage() {
                   <dd className="text-base font-semibold tabular">{fmt.money(assignment.monthlyRent)}</dd>
                 </div>
               </dl>
-              <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted-foreground">
                 <EnumBadge value={assignment.status} labels={assignmentStatusLabels} tones={assignmentStatusTones} />
                 <span>{roomTypeLabels[assignment.room.roomType]} room</span>
-                <span aria-hidden>·</span>
                 <span>{assignment.room.floor.name}</span>
-                <span aria-hidden>·</span>
                 <span>Since {fmt.date(assignment.checkInDate)}</span>
               </div>
             </>
