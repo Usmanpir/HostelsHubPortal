@@ -53,12 +53,19 @@ export function AppShell(props: ShellProps) {
 
   useEffect(() => {
     try {
+      // Restore a per-device preference from localStorage after mount (avoids hydration mismatch).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCollapsed(window.localStorage.getItem("sidebar-collapsed") === "1");
     } catch {
       /* ignore */
     }
   }, []);
-  useEffect(() => setMobileOpen(false), [pathname]);
+  // Close the mobile drawer on navigation (adjust state during render).
+  const [drawerPath, setDrawerPath] = useState(pathname);
+  if (drawerPath !== pathname) {
+    setDrawerPath(pathname);
+    setMobileOpen(false);
+  }
 
   const toggleCollapsed = () => {
     setCollapsed((c) => {
@@ -84,7 +91,7 @@ export function AppShell(props: ShellProps) {
       {/* Desktop / tablet sidebar */}
       <aside
         className={cn(
-          "sticky top-0 hidden h-dvh shrink-0 flex-col border-e bg-sidebar transition-[width] duration-200 md:flex",
+          "no-print sticky top-0 hidden h-dvh shrink-0 flex-col border-e bg-sidebar transition-[width] duration-200 md:flex",
           collapsed ? "w-14" : "w-60",
         )}
       >
@@ -126,7 +133,7 @@ export function AppShell(props: ShellProps) {
       </Sheet>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-background/85 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/70 sm:px-4">
+        <header className="no-print sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-background/85 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/70 sm:px-4">
           <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setMobileOpen(true)} aria-label="Open menu">
             <Menu />
           </Button>
@@ -156,7 +163,7 @@ export function AppShell(props: ShellProps) {
 
       {/* Mobile bottom navigation */}
       {bottomNav.length > 1 ? (
-        <nav className="fixed inset-x-0 bottom-0 z-40 grid border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden" style={{ gridTemplateColumns: `repeat(${bottomNav.length + 1}, minmax(0, 1fr))` }}>
+        <nav className="no-print fixed inset-x-0 bottom-0 z-40 grid border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden" style={{ gridTemplateColumns: `repeat(${bottomNav.length + 1}, minmax(0, 1fr))` }}>
           {bottomNav.map((item) => {
             const active = pathname === item.href || pathname.startsWith(item.href + "/");
             return (

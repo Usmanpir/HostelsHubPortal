@@ -87,6 +87,8 @@ export function DataTable<T>(props: DataTableProps<T>) {
     if (!props.storageKey) return;
     try {
       const saved = window.localStorage.getItem(`table-columns:${props.storageKey}`);
+      // Syncing from an external store (localStorage) after mount avoids a hydration mismatch.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (saved) setHidden(new Set(JSON.parse(saved) as string[]));
     } catch {
       /* storage unavailable */
@@ -118,9 +120,13 @@ export function DataTable<T>(props: DataTableProps<T>) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
-  // Clear selection when the page of rows changes.
+  // Clear selection when the page of rows changes (adjust state during render, no effect).
   const rowKey = rows.map(getRowId).join(",");
-  useEffect(() => setSelected(new Set()), [rowKey]);
+  const [selectionKey, setSelectionKey] = useState(rowKey);
+  if (selectionKey !== rowKey) {
+    setSelectionKey(rowKey);
+    setSelected(new Set());
+  }
 
   const visible = useMemo(() => columns.filter((c) => !hidden.has(c.id)), [columns, hidden]);
   const sort = url.get("sort");

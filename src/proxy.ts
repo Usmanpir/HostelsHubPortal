@@ -38,9 +38,10 @@ export const proxy = auth((req) => {
     url.searchParams.set("callbackUrl", pathname + search);
     return NextResponse.redirect(url);
   }
-  if (signedIn && AUTH_PAGES.includes(pathname)) {
-    return NextResponse.redirect(new URL("/dashboard", req.nextUrl));
-  }
+  // Signed-in visitors on /login are NOT redirected here: the cookie may decode
+  // but belong to a revoked session (sessionVersion bump), which only the
+  // server can detect. The auth pages redirect when the session is truly valid.
+  void AUTH_PAGES;
   return NextResponse.next();
 });
 

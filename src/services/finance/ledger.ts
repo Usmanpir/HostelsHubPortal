@@ -26,16 +26,7 @@ export async function nextReceiptNumber(db: DbClient, organizationId: string) {
   return formatNumber(org.receiptPrefix || "RCP", await nextSequence(db, organizationId, "receipt"), 5);
 }
 
-export type LineItem = { quantity: number; unitPrice: number };
-
-export function computeInvoiceTotals(items: LineItem[], discount: number, taxRatePercent: number) {
-  const subtotal = round2(items.reduce((sum, i) => sum + round2(i.quantity * i.unitPrice), 0));
-  const appliedDiscount = round2(Math.min(Math.max(discount, 0), subtotal));
-  const taxable = round2(subtotal - appliedDiscount);
-  const tax = round2((taxable * Math.max(taxRatePercent, 0)) / 100);
-  const total = round2(taxable + tax);
-  return { subtotal, discount: appliedDiscount, tax, total };
-}
+export { computeInvoiceTotals, lineAmount, type LineItem } from "./totals";
 
 /** Status after a payment change. Draft and cancelled invoices keep their status. */
 export function deriveInvoiceStatus(invoice: {

@@ -76,3 +76,45 @@ export const refundSchema = z.object({
 export type RefundInput = z.input<typeof refundSchema>;
 
 export const voidSchema = z.object({ reason: requiredText("Reason", 500).refine((v) => v.length >= 3, "Give a short reason") });
+
+export const PAYMENT_TYPES = ["PAYMENT", "ADVANCE", "REFUND"] as const;
+export const PAYMENT_STATUSES = ["COMPLETED", "VOIDED"] as const;
+export const EXPENSE_STATUSES = ["RECORDED", "VOIDED"] as const;
+
+export const expenseSchema = z.object({
+  hostelId: z.string().min(1, "Select a hostel").max(64),
+  categoryId: z.string().min(1, "Select a category").max(64),
+  amount: positiveMoney,
+  date: dateSchema,
+  vendor: optionalText(160),
+  description: optionalText(1000),
+  paymentMethod: z.enum(PAYMENT_METHODS).default("CASH"),
+  reference: optionalText(120),
+  /** Stored file id from /api/files (purpose "expense-receipt"); empty clears it. */
+  receiptFileId: optionalText(64),
+});
+export type ExpenseInput = z.input<typeof expenseSchema>;
+
+export const expenseCategorySchema = z.object({
+  name: requiredText("Category name", 60).refine((v) => v.length >= 2, "Use at least 2 characters"),
+});
+export type ExpenseCategoryInput = z.input<typeof expenseCategorySchema>;
+
+export const generateInvoicesSchema = z.object({
+  year: z.coerce.number().int().min(2000).max(2100),
+  month: z.coerce.number().int().min(1).max(12),
+  hostelId: optionalText(64),
+  applyTax: z.boolean().default(false),
+});
+export type GenerateInvoicesInput = z.input<typeof generateInvoicesSchema>;
+
+export const FINANCE_RANGE_PRESETS = ["today", "week", "month", "last_month", "year", "custom"] as const;
+export type FinanceRangePreset = (typeof FINANCE_RANGE_PRESETS)[number];
+
+export const dateRangeSchema = z
+  .object({ from: dateSchema, to: dateSchema })
+  .refine((v) => v.to >= v.from, { message: "The end date must be after the start date", path: ["to"] })
+  .refine((v) => v.to.getTime() - v.from.getTime() <= 3700 * 86400_000, {
+    message: "Choose a range of 10 years or less",
+    path: ["to"],
+  });

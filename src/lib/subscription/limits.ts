@@ -32,6 +32,12 @@ export function isSubscriptionUsable(sub: { status: string; trialEndsAt: Date | 
   return false;
 }
 
+/** Whole days left in a trial, or null when not trialing. */
+export function getTrialDaysLeft(sub: { status: string; trialEndsAt: Date | null } | null, now = new Date()) {
+  if (sub?.status !== "TRIALING" || !sub.trialEndsAt) return null;
+  return Math.max(0, Math.ceil((sub.trialEndsAt.getTime() - now.getTime()) / 86400_000));
+}
+
 export async function getUsage(db: DbClient, organizationId: string) {
   const [hostels, beds, residents, staff, storage] = await Promise.all([
     db.hostel.count({ where: { organizationId, archivedAt: null } }),

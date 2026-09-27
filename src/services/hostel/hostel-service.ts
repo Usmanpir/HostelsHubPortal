@@ -83,7 +83,8 @@ export async function listHostelOptions(ctx: TenantContext, options: { includeAr
 export async function getHostel(ctx: TenantContext, id: string) {
   requirePermission(ctx, "hostels.view");
   const hostel = await prisma.hostel.findFirst({
-    where: { id, ...accessibleHostelWhere(ctx) },
+    // AND (not spread): the access filter also constrains `id`.
+    where: { AND: [{ id }, accessibleHostelWhere(ctx)] },
     include: {
       manager: { select: { id: true, firstName: true, lastName: true, phone: true } },
       floors: {

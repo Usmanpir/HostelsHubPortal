@@ -5,7 +5,7 @@ import { requireTenantPage } from "@/lib/tenant/server";
 import { filterNavigation } from "@/config/navigation";
 import { getMessages } from "@/lib/i18n";
 import { listHostelOptions } from "@/services/hostel/hostel-service";
-import { getSubscription, isSubscriptionUsable } from "@/lib/subscription/limits";
+import { getSubscription, getTrialDaysLeft, isSubscriptionUsable } from "@/lib/subscription/limits";
 import { AppShell } from "@/components/layout/app-shell";
 import { OrgProvider } from "@/components/shared/org-context";
 import { APP_NAME } from "@/config/defaults";
@@ -24,10 +24,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const org = ctx.organization;
   const brandColor = org.primaryColor && /^#[0-9a-f]{6}$/i.test(org.primaryColor) ? org.primaryColor : null;
 
-  const trialDaysLeft =
-    subscription?.status === "TRIALING" && subscription.trialEndsAt
-      ? Math.ceil((subscription.trialEndsAt.getTime() - Date.now()) / 86400_000)
-      : null;
+  const trialDaysLeft = getTrialDaysLeft(subscription);
   const usable = isSubscriptionUsable(subscription);
 
   const banner = !usable ? (
