@@ -39,13 +39,18 @@ export function getTrialDaysLeft(sub: { status: string; trialEndsAt: Date | null
 }
 
 export async function getUsage(db: DbClient, organizationId: string) {
-  const [hostels, beds, residents, staff, storage] = await Promise.all([
-    db.hostel.count({ where: { organizationId, archivedAt: null } }),
-    db.bed.count({ where: { organizationId, archivedAt: null } }),
-    db.resident.count({ where: { organizationId, archivedAt: null, status: { in: ["ACTIVE", "NOTICE", "SUSPENDED"] } } }),
-    db.staff.count({ where: { organizationId, archivedAt: null, status: { in: ["ACTIVE", "ON_LEAVE"] } } }),
-    db.storedFile.aggregate({ where: { organizationId, deletedAt: null }, _sum: { size: true } }),
-  ]);
+  const queries = [
+    () => db.hostel.count({ where: { organizationId, archivedAt: null } }),
+    () => db.bed.count({ where: { organizationId, archivedAt: null } }),
+    () => db.resident.count({ where: { organizationId, archivedAt: null, status: { in: ["ACTIVE", "NOTICE", "SUSPENDED"] } } }),
+    () => db.staff.count({ where: { organizationId, archivedAt: null, status: { in: ["ACTIVE", "ON_LEAVE"] } } }),
+  ] as const;
+  // A transaction client must not run queries concurrently; the root client can.
+  const inTransaction = !("$transaction" in db);
+  const [hostels, beds, residents, staff] = inTransaction
+    ? [await queries[0](), await queries[1](), await queries[2](), await queries[3]()]
+    : await Promise.all(queries.map((q) => q()));
+  const storage = await db.storedFile.aggregate({ where: { organizationId, deletedAt: null }, _sum: { size: true } });
   return {
     hostels,
     beds,

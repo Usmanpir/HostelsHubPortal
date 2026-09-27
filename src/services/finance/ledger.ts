@@ -59,7 +59,11 @@ export async function markOverdueInvoices(organizationId: string, timezone = "UT
 
 export type ResidentBalance = { outstanding: number; credit: number; balance: number; overdue: number };
 
-/** Balances for many residents in two grouped queries (no N+1). */
+/**
+ * Balances for many residents in three grouped queries (no N+1). Queries run
+ * sequentially so this is safe inside an interactive transaction (a pg client
+ * must not run concurrent queries).
+ */
 export async function getResidentBalances(
   organizationId: string,
   residentIds: string[],
@@ -67,23 +71,21 @@ export async function getResidentBalances(
 ): Promise<Map<string, ResidentBalance>> {
   const result = new Map<string, ResidentBalance>();
   if (residentIds.length === 0) return result;
-  const [invoices, overdue, advances] = await Promise.all([
-    db.invoice.groupBy({
+  const invoices = await db.invoice.groupBy({
       by: ["residentId"],
       where: { organizationId, residentId: { in: residentIds }, status: { in: RECEIVABLE_STATUSES } },
       _sum: { total: true, amountPaid: true },
-    }),
-    db.invoice.groupBy({
+    });
+  const overdue = await db.invoice.groupBy({
       by: ["residentId"],
       where: { organizationId, residentId: { in: residentIds }, status: "OVERDUE" },
       _sum: { total: true, amountPaid: true },
-    }),
-    db.payment.groupBy({
+    });
+  const advances = await db.payment.groupBy({
       by: ["residentId"],
       where: { organizationId, residentId: { in: residentIds }, type: "ADVANCE", status: "COMPLETED" },
       _sum: { amount: true },
-    }),
-  ]);
+    });
   for (const id of residentIds) {
     const inv = invoices.find((i) => i.residentId === id);
     const od = overdue.find((i) => i.residentId === id);
