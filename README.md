@@ -210,3 +210,5 @@ room transfers, check-in/check-out, invoices, payments (incl. concurrent overpay
 - **Storage**: implement `StorageProvider` (`src/lib/storage/types.ts`).
 - **i18n**: add `src/lib/i18n/messages/<locale>.ts`; RTL direction is derived from the locale; layouts use logical CSS properties.
 - **White-label**: organization brand name, logo, primary colour, custom domain and email sender fields are in place.
+#   H o s t e l s H u b P o r t a l  
+ 
