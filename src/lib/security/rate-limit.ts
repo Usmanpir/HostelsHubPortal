@@ -13,6 +13,8 @@ export const RATE_LIMITS = {
   passwordReset: { limit: 5, windowSeconds: 60 * 60 },
   upload: { limit: 60, windowSeconds: 10 * 60 },
   api: { limit: 300, windowSeconds: 60 },
+  // Each question can trigger several model + tool calls.
+  assistant: { limit: 30, windowSeconds: 10 * 60 },
 } satisfies Record<string, RateLimitRule>;
 
 export async function hit(key: string, rule: RateLimitRule, db: DbClient = prisma) {

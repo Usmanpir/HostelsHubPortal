@@ -87,6 +87,7 @@ Every organization is a fully isolated tenant. Access is controlled by granular,
 - **15 reports** (occupancy, vacancy, collections, aging, profit and loss, payroll and more), each with CSV/Excel export and print-to-PDF
 - Audit log with before/after values for every financial change
 - Global search across residents, staff, rooms, beds, invoices, payments, complaints and maintenance
+- **AI assistant** (Google Gemini): ask questions in plain language, such as "Who has overdue rent?" or "How full is the Islamabad hostel?". It answers from live data using read-only tools that run with the user's own permissions and tenant scope
 - In-app notification center; email is optional and the SMS/WhatsApp channel is prepared
 
 ### SaaS platform
@@ -180,6 +181,8 @@ Copy `.env.example` to `.env`. All variables are documented there.
 | `REQUIRE_EMAIL_VERIFICATION` | No | Set to `true` to require a verified email before sign-in |
 | `CRON_SECRET` | Production | Bearer token that protects `/api/cron/daily` |
 | `SALES_EMAIL` | No | Inbox for "Book a demo" requests (defaults to `EMAIL_FROM`) |
+| `GEMINI_API_KEY` | No | Enables the in-app AI assistant. A free key is available from [Google AI Studio](https://aistudio.google.com/apikey). If empty, the assistant shows as unavailable |
+| `GEMINI_MODEL` | No | Gemini model for the assistant (default `gemini-flash-latest`) |
 
 ## Scripts
 

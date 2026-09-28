@@ -14,6 +14,7 @@ import { HostelSwitcher, type HostelOption } from "./hostel-switcher";
 import { GlobalSearch } from "./global-search";
 import { NotificationCenter } from "./notification-center";
 import { UserMenu } from "./user-menu";
+import { AssistantPanel } from "@/components/assistant/assistant-panel";
 
 export type ShellProps = {
   children: React.ReactNode;
@@ -28,6 +29,7 @@ export type ShellProps = {
   activeOrganizationId: string;
   permissions: string[];
   banner?: React.ReactNode;
+  assistantEnabled: boolean;
 };
 
 function Brand({ brand, collapsed }: { brand: ShellProps["brand"]; collapsed?: boolean }) {
@@ -160,6 +162,8 @@ export function AppShell(props: ShellProps) {
         {props.banner}
         <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-5 pb-24 sm:px-6 sm:py-6 md:pb-8">{props.children}</main>
       </div>
+
+      <AssistantPanel enabled={props.assistantEnabled} />
 
       {/* Mobile bottom navigation */}
       {bottomNav.length > 1 ? (

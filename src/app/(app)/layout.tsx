@@ -9,6 +9,7 @@ import { getSubscription, getTrialDaysLeft, isSubscriptionUsable } from "@/lib/s
 import { AppShell } from "@/components/layout/app-shell";
 import { OrgProvider } from "@/components/shared/org-context";
 import { APP_NAME } from "@/config/defaults";
+import { isAssistantConfigured } from "@/services/assistant/assistant-service";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await requireTenantPage();
@@ -75,6 +76,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         activeOrganizationId={ctx.organizationId}
         permissions={[...ctx.permissions]}
         banner={banner}
+        assistantEnabled={isAssistantConfigured()}
       >
         {children}
       </AppShell>
