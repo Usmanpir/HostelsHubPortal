@@ -5,17 +5,23 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useWatch } from "react-hook-form";
 import { ArrowRight, BedDouble, DoorOpen, Plus } from "lucide-react";
-import { FormGrid, MoneyField, SelectField, TextField } from "@/components/forms/fields";
+import { FormGrid, MoneyField, SelectField, SwitchField, TextField } from "@/components/forms/fields";
 import { SubmitButton } from "@/components/forms/submit-button";
 import { useActionForm } from "@/components/forms/use-action-form";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/shared/empty-state";
 import { optionsFrom, roomTypeCapacity, roomTypeLabels } from "@/config/labels";
-import type { RoomType } from "@/generated/prisma/enums";
-import { bulkRoomsSchema } from "@/lib/validation/property";
-import { bulkRoomsAction } from "@/app/onboarding/actions";
+import type { PropertyKind, RoomType } from "@/generated/prisma/enums";
+import { bulkRoomsSchema, WHOLE_UNIT_TYPES } from "@/lib/validation/property";
+import { onboardingUnitsSchema } from "@/lib/validation/auth";
+import { bulkRoomsAction, createUnitsAction } from "@/app/onboarding/actions";
 import type { OnboardingFloor } from "./types";
 import { StepCard, StepFooter } from "./wizard-chrome";
+import { defaultUnitType, wizardVocabulary, type WizardVocabulary } from "./vocabulary";
+
+type WholeUnitType = (typeof WHOLE_UNIT_TYPES)[number];
+const HOSTEL_VOCABULARY = wizardVocabulary("HOSTELS", "BY_BED");
+const WHOLE_UNIT_OPTIONS = WHOLE_UNIT_TYPES.map((t) => ({ value: t, label: roomTypeLabels[t] }));
 
 function nextRoomNumber(floor: OnboardingFloor) {
   const numeric = floor.rooms.map((r) => Number(r.roomNumber)).filter((n) => Number.isInteger(n) && n >= 0);
@@ -23,20 +29,37 @@ function nextRoomNumber(floor: OnboardingFloor) {
   return floor.floorNumber <= 0 ? 1 : floor.floorNumber * 100 + 1;
 }
 
-export function RoomsStep({ floors, currency, defaultRent }: { floors: OnboardingFloor[]; currency: string; defaultRent: number | null }) {
+export function RoomsStep({
+  floors,
+  currency,
+  defaultRent,
+  vocab = HOSTEL_VOCABULARY,
+  kind,
+}: {
+  floors: OnboardingFloor[];
+  currency: string;
+  defaultRent: number | null;
+  vocab?: WizardVocabulary;
+  kind?: PropertyKind;
+}) {
   const totalRooms = floors.reduce((n, f) => n + f.rooms.length, 0);
+  const units = vocab.units.toLowerCase();
 
   return (
     <StepCard
       eyebrow="Step 4"
-      title="Create rooms"
-      description="Generate rooms floor by floor. Beds are created automatically for each room."
+      title={`Create ${units}`}
+      description={
+        vocab.wholeUnit
+          ? "Generate units floor by floor. Each unit is rented to one tenant as a whole."
+          : `Generate ${units} floor by floor. Beds are created automatically for each ${vocab.unit.toLowerCase()}.`
+      }
     >
       {floors.length === 0 ? (
         <EmptyState
           icon={DoorOpen}
           title="Add a floor first"
-          description="Rooms belong to floors. Go back and add at least one floor."
+          description={`${vocab.units} belong to floors. Go back and add at least one floor.`}
           action={
             <Button asChild variant="outline">
               <Link href="/onboarding?step=3">Add floors</Link>
@@ -46,15 +69,15 @@ export function RoomsStep({ floors, currency, defaultRent }: { floors: Onboardin
       ) : (
         <div className="grid gap-4">
           {floors.map((floor) => (
-            <FloorRooms key={floor.id} floor={floor} currency={currency} defaultRent={defaultRent} />
+            <FloorRooms key={floor.id} floor={floor} currency={currency} defaultRent={defaultRent} vocab={vocab} kind={kind} />
           ))}
         </div>
       )}
       <StepFooter step={4} skipTo={totalRooms ? undefined : 6} skipLabel="Skip for now">
         {totalRooms ? (
           <Button asChild className="h-9 px-4">
-            <Link href="/onboarding?step=5">
-              Review beds
+            <Link href={vocab.wholeUnit ? "/onboarding?step=6" : "/onboarding?step=5"}>
+              {vocab.wholeUnit ? "Continue" : "Review beds"}
               <ArrowRight />
             </Link>
           </Button>
@@ -64,9 +87,23 @@ export function RoomsStep({ floors, currency, defaultRent }: { floors: Onboardin
   );
 }
 
-function FloorRooms({ floor, currency, defaultRent }: { floor: OnboardingFloor; currency: string; defaultRent: number | null }) {
+function FloorRooms({
+  floor,
+  currency,
+  defaultRent,
+  vocab,
+  kind,
+}: {
+  floor: OnboardingFloor;
+  currency: string;
+  defaultRent: number | null;
+  vocab: WizardVocabulary;
+  kind?: PropertyKind;
+}) {
   const [open, setOpen] = useState(floor.rooms.length === 0);
   const beds = floor.rooms.reduce((n, r) => n + r.bedCount, 0);
+  const unit = vocab.unit.toLowerCase();
+  const units = vocab.units.toLowerCase();
 
   return (
     <div className="rounded-xl border">
@@ -75,30 +112,49 @@ function FloorRooms({ floor, currency, defaultRent }: { floor: OnboardingFloor; 
           <p className="font-medium">{floor.name}</p>
           <p className="text-xs text-muted-foreground">
             {floor.rooms.length
-              ? `${floor.rooms.length} room${floor.rooms.length === 1 ? "" : "s"} · ${beds} bed${beds === 1 ? "" : "s"}`
-              : "No rooms yet"}
+              ? vocab.wholeUnit
+                ? `${floor.rooms.length} ${floor.rooms.length === 1 ? unit : units}`
+                : `${floor.rooms.length} ${floor.rooms.length === 1 ? unit : units} · ${beds} bed${beds === 1 ? "" : "s"}`
+              : `No ${units} yet`}
           </p>
         </div>
         {!open ? (
           <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
             <Plus />
-            Add rooms
+            Add {units}
           </Button>
         ) : null}
       </div>
       {floor.rooms.length ? (
-        <ul className="flex flex-wrap gap-1.5 border-t px-4 py-3" aria-label={`Rooms on ${floor.name}`}>
+        <ul className="flex flex-wrap gap-1.5 border-t px-4 py-3" aria-label={`${vocab.units} on ${floor.name}`}>
           {floor.rooms.map((r) => (
             <li key={r.id} className="inline-flex items-center gap-1 rounded-md border bg-muted/30 px-2 py-0.5 text-xs tabular">
               {r.roomNumber}
-              <span className="text-muted-foreground">· {r.bedCount}</span>
-              <BedDouble className="size-3 text-muted-foreground" aria-label="beds" />
+              {vocab.wholeUnit ? (
+                <span className="text-muted-foreground">· {roomTypeLabels[r.roomType]}</span>
+              ) : (
+                <>
+                  <span className="text-muted-foreground">· {r.bedCount}</span>
+                  <BedDouble className="size-3 text-muted-foreground" aria-label="beds" />
+                </>
+              )}
             </li>
           ))}
         </ul>
       ) : null}
       {open ? (
-        <BulkRoomsForm floor={floor} currency={currency} defaultRent={defaultRent} onDone={() => setOpen(false)} canCancel={floor.rooms.length > 0} />
+        vocab.wholeUnit ? (
+          <BulkUnitsForm
+            floor={floor}
+            currency={currency}
+            defaultRent={defaultRent}
+            kind={kind}
+            onDone={() => setOpen(false)}
+            canCancel={floor.rooms.length > 0}
+          />
+        ) : (
+          <BulkRoomsForm floor={floor} currency={currency} defaultRent={defaultRent} onDone={() => setOpen(false)} canCancel={floor.rooms.length > 0} />
+        )
       ) : null}
     </div>
   );
@@ -179,6 +235,85 @@ function BulkRoomsForm({
           ) : null}
           <SubmitButton pending={pending} pendingText="Creating…">
             Create rooms
+          </SubmitButton>
+        </div>
+      </div>
+    </form>
+  );
+}
+
+/** Whole-unit variant: one tenant per unit, so no capacity field. Each unit gets exactly one bed. */
+function BulkUnitsForm({
+  floor,
+  currency,
+  defaultRent,
+  kind,
+  onDone,
+  canCancel,
+}: {
+  floor: OnboardingFloor;
+  currency: string;
+  defaultRent: number | null;
+  kind?: PropertyKind;
+  onDone: () => void;
+  canCancel: boolean;
+}) {
+  const router = useRouter();
+  const suggested = defaultUnitType(kind);
+  const { form, onSubmit, pending } = useActionForm({
+    schema: onboardingUnitsSchema,
+    defaultValues: {
+      floorId: floor.id,
+      prefix: "",
+      startNumber: nextRoomNumber(floor),
+      count: kind === "HOUSE" ? 1 : 4,
+      roomType: (WHOLE_UNIT_TYPES as readonly RoomType[]).includes(suggested) ? (suggested as WholeUnitType) : "APARTMENT",
+      rent: defaultRent ?? undefined,
+      furnished: false,
+    },
+    action: createUnitsAction,
+    successMessage: (data) => `Created ${data.created} unit${data.created === 1 ? "" : "s"} on ${floor.name}`,
+    onSuccess: () => {
+      onDone();
+      router.refresh();
+    },
+  });
+  const c = form.control;
+  const [prefix, start, count] = useWatch({ control: c, name: ["prefix", "startNumber", "count"] });
+  const s = Number(start);
+  const n = Number(count);
+  const valid = Number.isInteger(s) && Number.isInteger(n) && n > 0;
+  const p = typeof prefix === "string" ? prefix.trim() : "";
+
+  return (
+    <form onSubmit={onSubmit} className="grid gap-4 border-t bg-muted/20 px-4 py-4" noValidate>
+      <FormGrid className="lg:grid-cols-3">
+        <TextField control={c} name="count" label="Number of units" type="number" inputMode="numeric" required />
+        <TextField control={c} name="startNumber" label="First unit number" type="number" inputMode="numeric" required />
+        <TextField control={c} name="prefix" label="Prefix" placeholder="e.g. A-" description="Optional" />
+        <SelectField control={c} name="roomType" label="Unit type" options={WHOLE_UNIT_OPTIONS} />
+        <MoneyField control={c} name="rent" label="Monthly rent per unit" currency={currency} description="Optional" />
+        <TextField control={c} name="areaSqft" label="Area (sq ft)" type="number" inputMode="numeric" description="Optional" />
+        <TextField control={c} name="bedrooms" label="Bedrooms" type="number" inputMode="numeric" description="Optional" />
+        <TextField control={c} name="bathrooms" label="Bathrooms" type="number" inputMode="numeric" description="Optional" />
+        <SwitchField control={c} name="furnished" label="Furnished" className="self-start" />
+      </FormGrid>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-muted-foreground" aria-live="polite">
+          {valid
+            ? n === 1
+              ? `Creates unit ${p}${s}, rented to one tenant.`
+              : `Creates units ${p}${s}–${p}${s + n - 1}, each rented to one tenant.`
+            : "Enter the number of units."}
+        </p>
+        <div className="flex gap-2">
+          {canCancel ? (
+            <Button type="button" variant="ghost" onClick={onDone}>
+              Cancel
+            </Button>
+          ) : null}
+          <SubmitButton pending={pending} pendingText="Creating…">
+            Create units
           </SubmitButton>
         </div>
       </div>

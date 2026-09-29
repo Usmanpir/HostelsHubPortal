@@ -47,6 +47,7 @@ export function parseAssignmentFilters(params: Params): AssignmentListFilters {
     hostelId: get(params, "hostelId") ?? null,
     from: from && DATE.test(from) ? from : undefined,
     to: to && DATE.test(to) ? to : undefined,
+    expiring: get(params, "lease") === "expiring" || undefined,
     page: positiveInt(get(params, "page"), 1),
     pageSize: Math.min(positiveInt(get(params, "pageSize"), 20), 100),
   };

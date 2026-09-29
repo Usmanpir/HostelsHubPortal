@@ -8,6 +8,7 @@ import { EnumBadge } from "@/components/shared/status-badge";
 import { residentStatusLabels, residentStatusTones } from "@/config/labels";
 import type { ResidentStatus } from "@/generated/prisma/enums";
 import { cn } from "@/lib/utils";
+import { useTerms } from "@/components/shared/org-context";
 import { searchAssignableResidentsAction } from "@/app/(app)/residents/actions";
 import { ResidentAvatar } from "./resident-avatar";
 
@@ -35,6 +36,7 @@ export function ResidentSearch({
   onSelect: (r: ResidentPick) => void;
   emptyHint?: React.ReactNode;
 }) {
+  const terms = useTerms();
   const [q, setQ] = useState("");
   const [results, setResults] = useState<ResidentPick[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -87,7 +89,17 @@ export function ResidentSearch({
       ) : results.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
           <UserSearch className="size-6" />
-          <p>{q ? "No matching residents." : mode === "check-in" ? "No residents are waiting for a bed." : "No residents are currently checked in."}</p>
+          <p>
+            {q
+              ? `No matching ${terms.residents.toLowerCase()}.`
+              : terms.property === "Hostel"
+                ? mode === "check-in"
+                  ? "No residents are waiting for a bed."
+                  : "No residents are currently checked in."
+                : mode === "check-in"
+                  ? `No ${terms.residents.toLowerCase()} are waiting for a unit.`
+                  : `No ${terms.residents.toLowerCase()} are currently moved in.`}
+          </p>
           {emptyHint}
         </div>
       ) : (

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { LayoutGrid } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shared/page-header";
@@ -6,7 +7,9 @@ import { SectionTabs } from "@/components/layout/section-tabs";
 import { StatCard } from "@/components/shared/stat-card";
 import { BedsTable } from "@/components/hostels/beds-table";
 import { requireTenantPage } from "@/lib/tenant/server";
+import { termsFor } from "@/lib/terms";
 import { listBeds } from "@/services/hostel/structure-service";
+import { getRentalModeUsage } from "@/services/hostel/hostel-service";
 import { getOccupancy } from "@/services/hostel/occupancy";
 import { sp, spEnum, spNumber } from "@/lib/page-helpers";
 import { bedStatusLabels, optionsFrom } from "@/config/labels";
@@ -17,6 +20,10 @@ export const metadata = { title: "Beds" };
 export default async function BedsPage({ searchParams }: PageProps<"/hostels/beds">) {
   const ctx = await requireTenantPage("rooms.view");
   const params = await searchParams;
+  const t = termsFor(ctx.organization.businessType);
+  // Orgs that only lease whole units have no beds to manage.
+  const usage = await getRentalModeUsage(ctx);
+  if (!usage.byBed) redirect("/hostels/rooms");
   const [data, occupancy] = await Promise.all([
     listBeds(ctx, {
       q: sp(params, "q"),
@@ -32,8 +39,8 @@ export default async function BedsPage({ searchParams }: PageProps<"/hostels/bed
     <>
       <PageHeader
         title="Beds"
-        description="Individual beds, their status and current residents."
-        breadcrumbs={[{ label: "Hostels", href: "/hostels" }, { label: "Beds" }]}
+        description={`Individual beds, their status and current ${t.residents.toLowerCase()}.`}
+        breadcrumbs={[{ label: t.properties, href: "/hostels" }, { label: "Beds" }]}
         actions={
           <Button asChild variant="outline">
             <Link href="/hostels/map">

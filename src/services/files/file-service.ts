@@ -18,6 +18,7 @@ export const UPLOAD_PURPOSES = {
   "expense-receipt": { kind: "document", permission: "expenses.manage" },
   "maintenance-photo": { kind: "image", permission: null },
   "organization-logo": { kind: "image", permission: "settings.organization" },
+  "listing-photo": { kind: "image", permission: "listings.manage" },
 } as const satisfies Record<string, { kind: FileKind; permission: Permission | null }>;
 
 export type UploadPurpose = keyof typeof UPLOAD_PURPOSES;
@@ -99,7 +100,7 @@ export async function claimUpload(
   });
   if (!file) throw new ValidationError("The uploaded file could not be found. Please upload it again.");
   const attached =
-    file.residentDocument || file.staffDocument || file.residentPhoto || file.staffPhoto || file.expenseReceipt || file.organizationLogo || file.maintenanceRequestId;
+    file.residentDocument || file.staffDocument || file.residentPhoto || file.staffPhoto || file.expenseReceipt || file.organizationLogo || file.maintenanceRequestId || file.listingId;
   if (attached) throw new ValidationError("This file is already attached to another record.");
   return file;
 }
@@ -143,6 +144,8 @@ export async function authorizeFileAccess(
     if (file.staffDocument) return !!ctx && can(ctx, "staff.manage");
     if (file.staffPhoto) return !!ctx && can(ctx, "staff.view");
     if (file.expenseReceipt) return !!ctx && can(ctx, "expenses.view") && hasHostelAccess(ctx, file.expenseReceipt.hostelId);
+    // Listing photos: any member who can see listings (the public site serves published photos itself).
+    if (file.listingId) return !!ctx && can(ctx, "listings.view");
     if (file.maintenanceRequest) {
       const m = file.maintenanceRequest;
       if (residentId && residentId === m.residentId) return true;

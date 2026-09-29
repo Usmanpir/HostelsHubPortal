@@ -7,6 +7,7 @@ import { FormGrid, SelectField, TextareaField, TextField } from "@/components/fo
 import { SubmitButton } from "@/components/forms/submit-button";
 import { useActionForm } from "@/components/forms/use-action-form";
 import { FormDialog } from "@/components/shared/form-dialog";
+import { useTerms } from "@/components/shared/org-context";
 import { floorSchema } from "@/lib/validation/property";
 import { createFloorAction, updateFloorAction } from "@/app/(app)/hostels/actions";
 
@@ -23,6 +24,7 @@ export function FloorDialog({
 }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
+  const t = useTerms();
   const { form, onSubmit, pending } = useActionForm({
     schema: floorSchema,
     defaultValues: floor
@@ -42,13 +44,13 @@ export function FloorDialog({
       onOpenChange={setOpen}
       trigger={trigger}
       title={floor ? "Edit floor" : "Add floor"}
-      description="Floors group rooms inside a hostel, e.g. Ground Floor (0), First Floor (1)."
+      description={`Floors group ${t.units.toLowerCase()} inside a ${t.property.toLowerCase()}, e.g. Ground Floor (0), First Floor (1).`}
     >
       <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
         <SelectField
           control={c}
           name="hostelId"
-          label="Hostel"
+          label={t.property}
           required
           disabled={!!floor}
           options={hostels.map((h) => ({ value: h.id, label: h.name }))}

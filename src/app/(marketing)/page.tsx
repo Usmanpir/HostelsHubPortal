@@ -10,13 +10,17 @@ import {
   Check,
   ClipboardList,
   CreditCard,
+  FilePen,
   FileSpreadsheet,
-  History,
+  Globe,
+  HandCoins,
+  Handshake,
   KeyRound,
   Layers,
   MessageSquareQuote,
   ShieldCheck,
   Smartphone,
+  Sparkles,
   UserPlus,
   Users,
   Wrench,
@@ -32,6 +36,10 @@ import {
   DashboardMock,
   HostelsMock,
   InvoiceMock,
+  LeaseMock,
+  ListingsMock,
+  OwnerStatementMock,
+  PipelineMock,
   PortalMock,
   ReportsMock,
   ResidentMock,
@@ -39,9 +47,9 @@ import {
 } from "@/components/marketing/mocks";
 import { cn } from "@/lib/utils";
 
-const TITLE = `${APP_NAME} — Hostel management software for every property you run`;
+const TITLE = `${APP_NAME} — Manage hostels, rentals and real estate from one platform`;
 const DESCRIPTION =
-  "Manage all your hostels from one powerful platform: rooms and beds, residents, staff, rent billing, maintenance and reports — with a self-service portal for residents.";
+  "Property management software for hostels, houses, apartments, shops and offices: beds and whole-unit leases, rent billing, owner statements and payouts, a dealer CRM for listings, leads, viewings and deals, and a public listings page.";
 
 export const metadata: Metadata = {
   title: { absolute: TITLE },
@@ -59,28 +67,52 @@ export const metadata: Metadata = {
 };
 
 const FEATURES: { icon: LucideIcon; title: string; text: string }[] = [
-  { icon: Building2, title: "Multi-hostel", text: "Run every property from one account and switch between them in a click." },
-  { icon: BedDouble, title: "Rooms & beds", text: "Floors, rooms and beds with a live, colour-coded bed map." },
-  { icon: Users, title: "Residents", text: "Profiles, documents, guardians, check-in, transfers and check-out." },
-  { icon: CreditCard, title: "Billing", text: "Monthly rent invoices, partial payments, advances, refunds and receipts." },
-  { icon: KeyRound, title: "Staff & roles", text: "Invite your team with role-based permissions scoped to specific hostels." },
+  { icon: Building2, title: "Any property type", text: "Hostels, houses, apartments, shops and offices in one account — switch between them in a click." },
+  { icon: BedDouble, title: "Rooms & beds", text: "Floors, rooms and beds with a live, colour-coded bed map for hostels and PGs." },
+  { icon: FilePen, title: "Rentals & leases", text: "Rent whole units on leases with end dates, notice periods, advance rent and annual increments." },
+  { icon: HandCoins, title: "Owners & payouts", text: "Track landlords, deduct management fees and produce owner statements and payouts." },
+  { icon: Handshake, title: "Dealer CRM", text: "Listings, leads, viewings and deals for property sales and rentals." },
+  { icon: Globe, title: "Public listings", text: "A public listings page for your organization, where enquiries come in as leads." },
+  { icon: Users, title: "Residents & tenants", text: "Profiles, documents, check-in, transfers, check-out and a self-service portal." },
+  { icon: CreditCard, title: "Billing & payments", text: "Rent invoices, online payments, partial payments, advances, refunds and receipts." },
+  { icon: KeyRound, title: "Staff & payroll", text: "Role-based access scoped to properties, attendance, leave, payroll and an audit trail." },
   { icon: Wrench, title: "Operations", text: "Maintenance requests, complaints, visitor logs and announcements." },
   { icon: BarChart3, title: "Reports", text: "Occupancy, collections, dues and expenses — exportable to Excel and CSV." },
-  { icon: History, title: "Audit trail", text: "Every important change is logged with who did it and when." },
+  { icon: Sparkles, title: "AI assistant & bulk import", text: "Ask questions about your data in plain language and import existing records from spreadsheets." },
 ];
 
 const STEPS: { icon: LucideIcon; title: string; text: string }[] = [
   { icon: UserPlus, title: "Create your account", text: "Sign up in a minute and start a free trial — no card required." },
-  { icon: Layers, title: "Map your property", text: "Add hostels, generate floors and rooms in bulk; beds are created for you." },
-  { icon: ClipboardList, title: "Check residents in", text: "Assign beds, record deposits and store documents in one flow." },
-  { icon: CreditCard, title: "Collect and track", text: "Bill rent every month, record payments and watch dues in real time." },
+  { icon: Layers, title: "Add your properties", text: "Set up hostels with floors, rooms and beds, or houses, apartments and shops rented as whole units." },
+  { icon: ClipboardList, title: "Move people in", text: "Assign beds or sign leases, record deposits and advance rent, and store documents in one flow." },
+  { icon: CreditCard, title: "Collect and pay out", text: "Bill rent, take payments, track dues and settle with property owners." },
 ];
 
 const FAQS: FaqItem[] = [
   {
-    question: "Can I manage more than one hostel?",
+    question: "What kinds of property can I manage?",
     answer:
-      "Yes. Every organization can run multiple hostels. A header switcher filters the whole app to one property, or you can view everything at once. Staff can be limited to the hostels they work in.",
+      "Hostels and PGs rented by the bed, and houses, apartments, shops and offices rented as whole units on a lease. You can mix property types in the same organization.",
+  },
+  {
+    question: "How do leases and rent increments work?",
+    answer:
+      "Each lease records its start and end dates, monthly rent, advance rent and notice period. You can set an annual rent increment that is applied automatically, and you get reminders before a lease expires.",
+  },
+  {
+    question: "Can I manage properties on behalf of owners?",
+    answer:
+      "Yes. Link properties to their owners, set a management fee, and generate owner statements showing rent collected, expenses and fees, then record payouts.",
+  },
+  {
+    question: "Does it work for real-estate dealers?",
+    answer:
+      "Yes. The dealer CRM covers listings, leads, viewings and deals, and each organization gets a public listings page where visitors can browse and send enquiries.",
+  },
+  {
+    question: "Can I manage more than one property?",
+    answer:
+      "Yes. Every organization can run multiple properties. A header switcher filters the whole app to one property, or you can view everything at once. Staff can be limited to the properties they work in.",
   },
   {
     question: "How does the free trial work?",
@@ -88,9 +120,9 @@ const FAQS: FaqItem[] = [
       "Every plan starts with a free trial and no payment details. You get the full feature set of your chosen plan during the trial and can change plans at any time.",
   },
   {
-    question: "Can residents log in?",
+    question: "Can residents and tenants log in?",
     answer:
-      "Yes. Residents get their own portal to see invoices and payments, raise maintenance requests and complaints, and read announcements. They only ever see their own records.",
+      "Yes. They get their own portal to see invoices and payments, raise maintenance requests and complaints, and read announcements. They only ever see their own records.",
   },
   {
     question: "Which currencies and time zones are supported?",
@@ -98,13 +130,13 @@ const FAQS: FaqItem[] = [
       "You choose your currency and time zone when you set up your organization. Amounts, due dates and reports all follow those settings.",
   },
   {
-    question: "Is my data kept separate from other operators?",
+    question: "Is my data kept separate from other businesses?",
     answer:
-      "Yes. Every record belongs to one organization and every request is checked against your membership and role on the server, so one operator can never see another's data.",
+      "Yes. Every record belongs to one organization and every request is checked against your membership and role on the server, so one organization can never see another's data.",
   },
   {
-    question: "Can I export my data?",
-    answer: "Lists and reports can be exported to CSV or Excel, depending on your plan.",
+    question: "Can I bring my existing data, and export it later?",
+    answer: "You can bulk import records from spreadsheets, and lists and reports can be exported to CSV or Excel, depending on your plan.",
   },
   {
     question: "Do I need to install anything?",
@@ -129,14 +161,14 @@ export default async function LandingPage() {
         <div className="mx-auto max-w-6xl px-4 pt-16 pb-10 text-center sm:px-6 sm:pt-24">
           <p className="mx-auto inline-flex items-center gap-2 rounded-full border bg-background/70 px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm backdrop-blur">
             <span className="size-1.5 rounded-full bg-success" />
-            Built for hostels, PGs and student housing
+            Hostels, rentals and real estate
           </p>
           <h1 className="mx-auto mt-6 max-w-3xl text-4xl font-semibold tracking-tight text-balance sm:text-5xl lg:text-6xl">
-            Manage all your hostels from one powerful platform.
+            Manage hostels, rentals and real estate from one platform.
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-base text-pretty text-muted-foreground sm:text-lg">
-            Beds, residents, staff, rent and maintenance for every property you run — organised in one calm workspace, with a
-            portal your residents will actually use.
+            Beds and whole-unit leases, rent collection, owner payouts and a dealer CRM with public listings — for hostels,
+            houses, apartments, shops and offices, organised in one calm workspace.
           </p>
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
             {signedIn ? (
@@ -171,13 +203,13 @@ export default async function LandingPage() {
             <div aria-hidden>
               <DashboardMock />
             </div>
-            <p className="sr-only">Illustration of the dashboard with occupancy, rent collection and a bed map.</p>
+            <p className="sr-only">Illustration of the dashboard with occupancy, rent collection and a bed map across properties.</p>
           </div>
         </div>
       </section>
 
       {/* Features */}
-      <Section id="features" eyebrow="Features" title="Everything a hostel operator needs" description="One system instead of registers, spreadsheets and chat groups.">
+      <Section id="features" eyebrow="Features" title="Everything a property business needs" description="For hostel operators, landlords, property managers and real-estate dealers — one system instead of registers, spreadsheets and chat groups.">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {FEATURES.map(({ icon: Icon, title, text }) => (
             <div key={title} className="group rounded-2xl border bg-card p-5 transition-colors hover:border-primary/30">
@@ -210,16 +242,50 @@ export default async function LandingPage() {
       </Section>
 
       <Spotlight
-        id="multi-hostel"
-        eyebrow="Multi-hostel management"
+        id="properties"
+        eyebrow="Multi-property management"
         title="Every property, one login"
-        text="See occupancy and dues across all your hostels, or focus on one with the hostel switcher. Each property keeps its own floors, rooms, rent defaults and rules."
-        points={["Portfolio-wide dashboard", "Per-hostel rent, deposit and late-fee settings", "Staff restricted to the hostels they manage"]}
+        text="Run hostels rented by the bed alongside houses, apartments, shops and offices rented as whole units. See occupancy and dues across your portfolio, or focus on one property with the switcher."
+        points={["Portfolio-wide dashboard", "Per-property rent, deposit and late-fee settings", "Staff restricted to the properties they manage"]}
         visual={<HostelsMock />}
       />
       <Spotlight
+        id="leases"
+        eyebrow="Rentals & leases"
+        title="Whole-unit rentals with leases that keep track of themselves"
+        text="Rent out houses, apartments, shops and offices on a lease. Record the term, notice period and advance rent, apply annual rent increments automatically, and get reminded before a lease expires."
+        points={["Lease end dates and notice periods", "Advance rent and security deposits", "Automatic annual rent increments", "Expiry reminders"]}
+        visual={<LeaseMock />}
+        reverse
+      />
+      <Spotlight
+        id="owners"
+        eyebrow="Owner management"
+        title="Manage property for owners, and pay them accurately"
+        text="Link each property to its owner and set your management fee. Owner statements show rent collected, expenses and fees for the period, and payouts are recorded against them."
+        points={["Owner and landlord records", "Management fees", "Owner statements and payouts"]}
+        visual={<OwnerStatementMock />}
+      />
+      <Spotlight
+        id="crm"
+        eyebrow="Dealer CRM"
+        title="Listings, leads, viewings and deals in one pipeline"
+        text="For real-estate dealers and agents: publish listings for sale or rent, capture leads, schedule viewings and track deals through to closing."
+        points={["Listings for sale and rent", "Lead capture and follow-up", "Viewing schedule", "Deal tracking"]}
+        visual={<PipelineMock />}
+        reverse
+      />
+      <Spotlight
+        id="listings"
+        eyebrow="Public listings page"
+        title="A listings page for your organization"
+        text="Every organization gets its own public page showing the listings you choose to publish. Visitors can browse available properties and send enquiries, which arrive in your CRM as leads."
+        points={["Your own listings page link", "Publish only what you choose", "Enquiries become leads"]}
+        visual={<ListingsMock />}
+      />
+      <Spotlight
         id="residents"
-        eyebrow="Resident management"
+        eyebrow="Hostel residents"
         title="Know who is in every bed"
         text="Check residents in to a specific bed, keep ID documents and guardian contacts on file, and handle transfers and check-outs without losing history."
         points={["Guided check-in with rent and deposit", "Bed transfers with full history", "Documents stored privately"]}
@@ -230,16 +296,16 @@ export default async function LandingPage() {
         id="staff"
         eyebrow="Staff management"
         title="Your team, with the right access"
-        text="Invite managers, wardens, accountants and security staff. Track attendance and leave, run payroll, and give each role exactly the permissions it needs."
-        points={["Role-based permissions", "Attendance, leave and payroll", "Per-hostel access control"]}
+        text="Invite managers, wardens, accountants and security staff. Track attendance and leave, run payroll, and give each role exactly the permissions it needs, limited to the properties they work on."
+        points={["Role-based permissions", "Attendance, leave and payroll", "Per-property access control"]}
         visual={<StaffMock />}
       />
       <Spotlight
         id="billing"
         eyebrow="Billing"
         title="Rent collection without the chasing"
-        text="Generate monthly invoices, record cash, bank transfer or card payments, apply advances and issue receipts. Outstanding balances and overdue invoices are always visible."
-        points={["Monthly invoice runs", "Partial payments, advances and refunds", "Printable receipts"]}
+        text="Generate monthly invoices for beds and leases, accept online payments or record cash and bank transfers, apply advances and issue receipts. Outstanding balances and overdue invoices are always visible."
+        points={["Monthly invoice runs", "Online payments", "Partial payments, advances and refunds", "Printable receipts"]}
         visual={<InvoiceMock />}
         reverse
       />
@@ -247,15 +313,15 @@ export default async function LandingPage() {
         id="reports"
         eyebrow="Reports"
         title="Numbers you can act on"
-        text="Occupancy, revenue, collections, expenses and dues by hostel and period. Export any report when your accountant asks."
+        text="Occupancy, revenue, collections, expenses and dues by property and period. Export any report when your accountant asks."
         points={["Occupancy and vacancy trends", "Revenue vs expenses", "Excel and CSV exports"]}
         visual={<ReportsMock />}
       />
       <Spotlight
         id="resident-portal"
-        eyebrow="Resident portal"
-        title="Self-service for residents"
-        text="Residents sign in to see their invoices and payments, raise maintenance requests and complaints, and read announcements — fewer calls to the front desk."
+        eyebrow="Resident & tenant portal"
+        title="Self-service for residents and tenants"
+        text="Residents and tenants sign in to see their invoices and payments, raise maintenance requests and complaints, and read announcements — fewer calls to the front desk."
         points={["Invoices and payment history", "Maintenance and complaint tracking", "Announcements and notices"]}
         visual={<PortalMock />}
         reverse
@@ -266,7 +332,7 @@ export default async function LandingPage() {
         id="stories"
         eyebrow="Customer stories"
         title="Your story could be here"
-        description={`We're collecting stories from operators using ${APP_NAME}. Run your hostels with us and tell us how it's going.`}
+        description={`We're collecting stories from teams using ${APP_NAME}. Run your properties with us and tell us how it's going.`}
         muted
       >
         <div className="grid gap-4 md:grid-cols-3">
@@ -297,7 +363,7 @@ export default async function LandingPage() {
         id="pricing"
         eyebrow="Pricing"
         title="Simple plans that grow with you"
-        description="Start free, then pick the plan that fits the number of hostels and beds you run."
+        description="Start free, then pick the plan that fits the size of your portfolio."
       >
         <PricingTable plans={plans} signedIn={signedIn} />
       </Section>
@@ -315,10 +381,10 @@ export default async function LandingPage() {
           <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(rgb(255_255_255/0.12)_1px,transparent_1px)] bg-size-[20px_20px]" />
           <ShieldCheck className="relative mx-auto size-8 opacity-90" />
           <h2 className="relative mx-auto mt-4 max-w-2xl text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-            Bring every hostel under one roof.
+            Bring every property under one roof.
           </h2>
           <p className="relative mx-auto mt-3 max-w-xl text-sm text-pretty opacity-90 sm:text-base">
-            Set up your organization, first hostel and rooms in a guided wizard. Invite your team when you&apos;re ready.
+            Set up your organization and first property in a guided wizard. Invite your team when you&apos;re ready.
           </p>
           <div className="relative mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Button asChild size="lg" variant="secondary" className="h-11 px-6 text-base">
@@ -346,8 +412,8 @@ export default async function LandingPage() {
             <p className="text-sm font-medium text-primary">Book a demo</p>
             <h2 className="mt-2 text-3xl font-semibold tracking-tight text-balance">See {APP_NAME} with your own setup</h2>
             <p className="mt-3 text-pretty text-muted-foreground">
-              Tell us a little about your hostels and we&apos;ll walk you through bed allocation, billing and reporting — and
-              answer your questions about moving over from registers or spreadsheets.
+              Tell us a little about your properties and we&apos;ll walk you through beds or leases, billing, owner payouts or
+              the dealer CRM — and answer your questions about moving over from registers or spreadsheets.
             </p>
             <ul className="mt-6 grid gap-3 text-sm">
               {["A walkthrough tailored to your properties", "Answers on pricing and getting started", "No obligation — start your trial whenever you like"].map((t) => (

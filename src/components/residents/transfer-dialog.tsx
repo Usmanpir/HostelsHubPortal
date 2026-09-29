@@ -12,7 +12,7 @@ import { FormGrid, MoneyField, TextareaField, TextField } from "@/components/for
 import { SubmitButton } from "@/components/forms/submit-button";
 import { useActionForm } from "@/components/forms/use-action-form";
 import { FormDialog } from "@/components/shared/form-dialog";
-import { useFormatters } from "@/components/shared/org-context";
+import { useFormatters, useTerms } from "@/components/shared/org-context";
 import { transferSchema } from "@/lib/validation/resident";
 import { transferAction } from "@/app/(app)/residents/actions";
 import { BedChoices, findBed, MapState, useHostelBedMap, type AssignableHostel } from "./bed-picker";
@@ -35,6 +35,7 @@ export function TransferDialog({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const fmt = useFormatters();
+  const terms = useTerms();
   const [open, setOpen] = useState(!!defaultOpen);
   const [hostelId, setHostelId] = useState<string | null>(hostels.some((h) => h.id === resident.hostelId) ? resident.hostelId : (hostels[0]?.id ?? null));
   const [roomId, setRoomId] = useState<string | null>(null);
@@ -73,13 +74,13 @@ export function TransferDialog({
       onOpenChange={close}
       trigger={trigger}
       title={`Transfer ${resident.name}`}
-      description={`Currently in ${resident.label}. The current stay ends on the transfer date and a new one starts, keeping the deposit.`}
+      description={`Currently in ${resident.label}. The current ${terms.stay.toLowerCase()} ends on the transfer date and a new one starts, keeping the deposit.`}
       className="sm:max-w-xl"
     >
       <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
         <FormGrid>
           <div className="grid gap-2">
-            <Label htmlFor="transfer-hostel">Hostel</Label>
+            <Label htmlFor="transfer-hostel">{terms.property}</Label>
             <Select
               value={hostelId ?? ""}
               onValueChange={(v) => {
@@ -101,7 +102,7 @@ export function TransferDialog({
             </Select>
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="transfer-room">Room</Label>
+            <Label htmlFor="transfer-room">{terms.unit}</Label>
             <Select
               value={roomId ?? ""}
               onValueChange={(v) => {

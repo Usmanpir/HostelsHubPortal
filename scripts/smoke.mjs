@@ -196,6 +196,55 @@ async function main() {
   for (const p of ["/portal", "/portal/room", "/portal/invoices", "/portal/payments", "/portal/complaints", "/portal/maintenance", "/portal/announcements", "/portal/requests", "/portal/profile"]) await expectPage(resident, p);
   await expectApi(resident, "/api/residents", 401);
 
+  console.log("\nProperty management / real estate organization");
+  const prop = new Session();
+  await prop.login("property@demo-rentals.dev");
+  for (const p of [
+    "/dashboard", "/hostels", "/hostels/map", "/hostels/rooms", "/residents", "/residents/assignments", "/residents/check-in",
+    "/owners", "/owners/payouts", "/listings", "/listings/new", "/leads", "/leads/new", "/leads/viewings", "/deals", "/deals/new",
+    "/settings/business", "/finance/invoices",
+  ]) await expectPage(prop, p);
+  for (const [api, prefix] of [["/api/owners", "/owners/"], ["/api/listings", "/listings/"], ["/api/leads", "/leads/"], ["/api/deals", "/deals/"]]) {
+    const { res } = await prop.fetch(api);
+    const json = await res.json();
+    const first = (json.data?.items ?? json.data)?.[0];
+    if (!first?.id) fail(`${api} returned no items`);
+    else await expectPage(prop, `${prefix}${first.id}`);
+  }
+  const { res: ownersRes } = await prop.fetch("/api/owners");
+  const firstOwner = (await ownersRes.json()).data.items[0];
+  if (firstOwner) await expectPage(prop, `/owners/${firstOwner.id}/statement`);
+  // Cross-tenant: the hostel org can't see property-org listings.
+  const { res: listingsRes } = await prop.fetch("/api/listings");
+  const someListing = (await listingsRes.json()).data.items[0];
+  {
+    const { res } = await owner.fetch(`/api/listings/${someListing.id}`);
+    const body = await res.text();
+    // 404 (not found in this tenant) or 422 (module disabled for this tenant) — never the data.
+    if (![404, 422].includes(res.status) || body.includes(someListing.title)) fail(`other tenant's listing leaked (${res.status})`);
+    else console.log(`  ✓ other tenant can't read the listing → ${res.status}`);
+  }
+
+  console.log("\nAgent (sales & leasing only)");
+  const agent = new Session();
+  await agent.login("agent@demo-rentals.dev");
+  for (const p of ["/dashboard", "/listings", "/leads", "/leads/viewings", "/deals"]) await expectPage(agent, p);
+  await expectBlocked(agent, "/finance/invoices");
+  await expectBlocked(agent, "/owners");
+  await expectBlocked(agent, "/deals/new");
+
+  console.log("\nPublic listings page");
+  const visitor = new Session();
+  await expectPage(visitor, "/l/demo-property-group");
+  const { res: pubRes } = await visitor.fetch("/l/demo-property-group");
+  const pubHtml = await pubRes.text();
+  const slug = pubHtml.match(/href="\/l\/demo-property-group\/([a-z0-9-]+)"/)?.[1];
+  if (!slug) fail("no public listing link found");
+  else await expectPage(visitor, `/l/demo-property-group/${slug}`);
+  const { res: hiddenRes } = await visitor.fetch("/l/demo-hostel-management");
+  if (hiddenRes.status !== 404) fail(`hostel org public page should 404, got ${hiddenRes.status}`);
+  else console.log("  ✓ disabled public page → 404");
+
   console.log("\nSuper admin");
   const admin = new Session();
   await admin.login("admin@hostelhub.dev");

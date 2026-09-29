@@ -23,6 +23,8 @@ import { ResidentActions } from "@/components/residents/resident-actions";
 import { StayTimeline } from "@/components/residents/stay-timeline";
 import { DocumentsCard } from "@/components/residents/documents-card";
 import { PortalAccessCard } from "@/components/residents/portal-access-card";
+import { RenewLeaseDialog } from "@/components/residents/renew-lease-dialog";
+import { termsFor } from "@/lib/terms";
 import { requireTenantPage } from "@/lib/tenant/server";
 import { can } from "@/lib/tenant/context";
 import { loadOr404, sp } from "@/lib/page-helpers";
@@ -61,6 +63,14 @@ export default async function ResidentProfilePage({ params, searchParams }: Page
   const today = todayInTimeZone(ctx.organization.timezone);
   const archived = r.status === "ARCHIVED";
   const finance = r.finance;
+  const t = termsFor(ctx.organization.businessType);
+  const hostelOrg = ctx.organization.businessType === "HOSTELS";
+  const whole = stay?.hostel.rentalMode === "WHOLE_UNIT";
+  const spot = whole ? "unit" : "bed";
+  const leaseEnd = stay?.leaseEndDate ? toDateInput(stay.leaseEndDate) : null;
+  const daysToExpiry =
+    stay?.status === "ACTIVE" && leaseEnd ? Math.round((Date.parse(`${leaseEnd}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86400_000) : null;
+  const hasLease = !!stay && (whole || !!stay.leaseEndDate || stay.rentIncrementPercent !== null || !!stay.leaseTerms);
 
   return (
     <>
@@ -83,7 +93,7 @@ export default async function ResidentProfilePage({ params, searchParams }: Page
             {stay ? <span>{stay.label}</span> : null}
           </span>
         }
-        breadcrumbs={[{ label: "Residents", href: "/residents" }, { label: r.name }]}
+        breadcrumbs={[{ label: t.residents, href: "/residents" }, { label: r.name }]}
         actions={
           <ResidentActions
             today={today}
@@ -112,15 +122,23 @@ export default async function ResidentProfilePage({ params, searchParams }: Page
       {archived ? (
         <div className="mb-4 flex items-center gap-2 rounded-xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
           <ShieldAlert className="size-4" />
-          This resident is archived. Their history, invoices and payments are preserved.
+          This {t.resident.toLowerCase()} is archived. Their history, invoices and payments are preserved.
         </div>
       ) : null}
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard
-          label={stay?.status === "RESERVED" ? "Reserved bed" : "Current bed"}
-          value={stay ? <span className="text-lg">{stay.label}</span> : <span className="text-lg text-muted-foreground">No bed</span>}
-          hint={stay ? `${stay.hostel.name} · since ${date(stay.checkInDate)}` : r.actualLeavingDate ? `Left ${date(r.actualLeavingDate)}` : "Not checked in"}
+          label={stay?.status === "RESERVED" ? `Reserved ${spot}` : `Current ${spot}`}
+          value={stay ? <span className="text-lg">{stay.label}</span> : <span className="text-lg text-muted-foreground">{hostelOrg ? "No bed" : "No unit"}</span>}
+          hint={
+            stay
+              ? `${stay.hostel.name} · since ${date(stay.checkInDate)}`
+              : r.actualLeavingDate
+                ? `Left ${date(r.actualLeavingDate)}`
+                : hostelOrg
+                  ? "Not checked in"
+                  : "Not moved in"
+          }
           icon={BedDouble}
           tone={stay?.status === "ACTIVE" ? "success" : "default"}
         />
@@ -134,7 +152,7 @@ export default async function ResidentProfilePage({ params, searchParams }: Page
             tone={finance.balance.overdue > 0 ? "danger" : finance.balance.balance > 0 ? "warning" : "success"}
           />
         ) : (
-          <StatCard label="Stays" value={r.assignments.length} icon={ClipboardList} />
+          <StatCard label={t.stays} value={r.assignments.length} icon={ClipboardList} />
         )}
         <StatCard
           label="Open issues"
@@ -149,7 +167,9 @@ export default async function ResidentProfilePage({ params, searchParams }: Page
         <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
           <TabsList>
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="stays">Stays ({r.assignments.length})</TabsTrigger>
+            <TabsTrigger value="stays">
+              {t.stays} ({r.assignments.length})
+            </TabsTrigger>
             {finance ? <TabsTrigger value="finance">Finance</TabsTrigger> : null}
             {r.documents ? <TabsTrigger value="documents">Documents ({r.documents.length})</TabsTrigger> : null}
             {r.requests ? <TabsTrigger value="requests">Requests{r.counts.pendingRequests ? ` (${r.counts.pendingRequests})` : ""}</TabsTrigger> : null}
@@ -215,26 +235,106 @@ export default async function ResidentProfilePage({ params, searchParams }: Page
             <div className="flex flex-col gap-4">
               <section className="rounded-xl border bg-card p-4">
                 <div className="mb-3 flex items-center justify-between gap-2">
-                  <h2 className="text-sm font-semibold">Current stay</h2>
-                  {stay ? <EnumBadge value={stay.status} labels={assignmentStatusLabels} tones={assignmentStatusTones} /> : null}
+                  <h2 className="text-sm font-semibold">{whole || !hostelOrg ? `Current ${t.stay.toLowerCase()}` : "Current stay"}</h2>
+                  <span className="flex items-center gap-1.5">
+                    {daysToExpiry !== null ? (
+                      daysToExpiry < 0 ? (
+                        <StatusBadge tone="danger">Lease ended</StatusBadge>
+                      ) : daysToExpiry <= 30 ? (
+                        <StatusBadge tone="warning">
+                          {daysToExpiry === 0 ? "Ends today" : `${daysToExpiry} day${daysToExpiry === 1 ? "" : "s"} left`}
+                        </StatusBadge>
+                      ) : (
+                        <StatusBadge tone="neutral" dot={false}>
+                          {daysToExpiry} days left
+                        </StatusBadge>
+                      )
+                    ) : null}
+                    {stay ? <EnumBadge value={stay.status} labels={assignmentStatusLabels} tones={assignmentStatusTones} /> : null}
+                  </span>
                 </div>
                 {stay ? (
-                  <dl className="grid grid-cols-2 gap-3 text-sm">
-                    <Detail label="Hostel" value={stay.hostel.name} />
-                    <Detail label="Floor" value={stay.room.floor.name} />
-                    <Detail label="Room" value={can(ctx, "rooms.view") ? <Link href={`/hostels/rooms/${stay.room.id}`} className="hover:text-primary">{stay.room.roomNumber}</Link> : stay.room.roomNumber} />
-                    <Detail label="Bed" value={stay.bed.bedNumber} />
-                    <Detail label={stay.status === "RESERVED" ? "Move-in" : "Checked in"} value={date(stay.checkInDate)} />
-                    <Detail label="Monthly rent" value={<span className="tabular">{money(stay.monthlyRent)}</span>} />
-                    <Detail label="Security deposit" value={<span className="tabular">{money(stay.securityDeposit)}</span>} />
-                    {stay.roomCapacity ? <Detail label="Room capacity" value={`${stay.roomCapacity} beds`} /> : null}
-                  </dl>
+                  <div className="flex flex-col gap-4">
+                    <dl className="grid grid-cols-2 gap-3 text-sm">
+                      <Detail label={t.property} value={stay.hostel.name} />
+                      <Detail label="Floor" value={stay.room.floor.name} />
+                      <Detail
+                        label={whole ? "Unit" : t.unit}
+                        value={
+                          can(ctx, "rooms.view") ? (
+                            <Link href={`/hostels/rooms/${stay.room.id}`} className="hover:text-primary">
+                              {stay.room.roomNumber}
+                            </Link>
+                          ) : (
+                            stay.room.roomNumber
+                          )
+                        }
+                      />
+                      {whole ? null : <Detail label="Bed" value={stay.bed.bedNumber} />}
+                      <Detail label={stay.status === "RESERVED" ? "Move-in" : t.checkedIn} value={date(stay.checkInDate)} />
+                      <Detail label="Monthly rent" value={<span className="tabular">{money(stay.monthlyRent)}</span>} />
+                      <Detail label="Security deposit" value={<span className="tabular">{money(stay.securityDeposit)}</span>} />
+                      {stay.roomCapacity && !whole ? <Detail label={`${t.unit} capacity`} value={`${stay.roomCapacity} beds`} /> : null}
+                    </dl>
+                    {hasLease ? (
+                      <div className="flex flex-col gap-3 border-t pt-3">
+                        <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Lease</h3>
+                        <dl className="grid grid-cols-2 gap-3 text-sm">
+                          <Detail label="Ends" value={stay.leaseEndDate ? date(stay.leaseEndDate) : <span className="text-muted-foreground">Open-ended</span>} />
+                          <Detail
+                            label="Notice period"
+                            value={stay.noticePeriodDays !== null ? `${stay.noticePeriodDays} days` : <span className="text-muted-foreground">—</span>}
+                          />
+                          {stay.advanceRent !== null ? (
+                            <Detail label="Advance rent" value={<span className="tabular">{money(stay.advanceRent)}</span>} />
+                          ) : null}
+                          <Detail
+                            label="Rent increase"
+                            value={
+                              stay.rentIncrementPercent !== null ? (
+                                <span>
+                                  {stay.rentIncrementPercent}% every {stay.incrementIntervalMonths ?? 12} months
+                                  {stay.nextIncrementDate ? (
+                                    <span className="block text-xs text-muted-foreground">Next on {date(stay.nextIncrementDate)}</span>
+                                  ) : null}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">None</span>
+                              )
+                            }
+                          />
+                        </dl>
+                        {stay.leaseTerms ? <p className="text-sm whitespace-pre-line text-muted-foreground">{stay.leaseTerms}</p> : null}
+                      </div>
+                    ) : null}
+                    {canAssign && stay.status === "ACTIVE" && !archived ? (
+                      <div>
+                        <RenewLeaseDialog
+                          today={today}
+                          lease={{
+                            id: stay.id,
+                            monthlyRent: stay.monthlyRent,
+                            leaseEndDate: leaseEnd,
+                            noticePeriodDays: stay.noticePeriodDays,
+                            rentIncrementPercent: stay.rentIncrementPercent,
+                            leaseTerms: stay.leaseTerms,
+                          }}
+                        />
+                      </div>
+                    ) : null}
+                  </div>
                 ) : (
                   <div className="flex flex-col items-start gap-3 text-sm text-muted-foreground">
-                    <p>{r.status === "CHECKED_OUT" ? "Checked out — see the stay history." : "No bed assigned yet."}</p>
+                    <p>
+                      {r.status === "CHECKED_OUT"
+                        ? `${t.checkedOut} — see the ${t.stay.toLowerCase()} history.`
+                        : hostelOrg
+                          ? "No bed assigned yet."
+                          : "No unit assigned yet."}
+                    </p>
                     {canAssign && !archived && r.status !== "SUSPENDED" ? (
                       <Button asChild size="sm">
-                        <Link href={`/residents/check-in?residentId=${r.id}`}>{r.status === "CHECKED_OUT" ? "Re-admit" : "Check in"}</Link>
+                        <Link href={`/residents/check-in?residentId=${r.id}`}>{r.status === "CHECKED_OUT" ? "Re-admit" : t.checkIn}</Link>
                       </Button>
                     ) : null}
                   </div>
@@ -288,11 +388,15 @@ export default async function ResidentProfilePage({ params, searchParams }: Page
           <section className="rounded-xl border bg-card">
             <header className="flex items-center justify-between border-b px-4 py-3">
               <div>
-                <h2 className="text-sm font-semibold">Stay history</h2>
-                <p className="text-xs text-muted-foreground">Every bed this resident has reserved or occupied, including transfers.</p>
+                <h2 className="text-sm font-semibold">{t.stay} history</h2>
+                <p className="text-xs text-muted-foreground">
+                  {hostelOrg
+                    ? "Every bed this resident has reserved or occupied, including transfers."
+                    : `Every unit or bed this ${t.resident.toLowerCase()} has reserved or occupied, including transfers.`}
+                </p>
               </div>
             </header>
-            <StayTimeline stays={r.assignments} currency={currency} locale={locale} showRoomLinks={can(ctx, "rooms.view")} />
+            <StayTimeline stays={r.assignments} currency={currency} locale={locale} showRoomLinks={can(ctx, "rooms.view")} terms={t} />
           </section>
         </TabsContent>
 
@@ -415,7 +519,7 @@ export default async function ResidentProfilePage({ params, searchParams }: Page
                 </Link>
               </header>
               {r.requests.length === 0 ? (
-                <p className="px-4 py-8 text-center text-sm text-muted-foreground">No requests from this resident.</p>
+                <p className="px-4 py-8 text-center text-sm text-muted-foreground">No requests from this {t.resident.toLowerCase()}.</p>
               ) : (
                 <ul className="divide-y">
                   {r.requests.map((q) => (

@@ -2,7 +2,8 @@ import Link from "next/link";
 import { Building2, MapPin } from "lucide-react";
 import { EnumBadge } from "@/components/shared/status-badge";
 import { hostelStatusLabels, hostelStatusTones, hostelTypeLabels } from "@/config/labels";
-import type { HostelStatus, HostelType } from "@/generated/prisma/enums";
+import type { HostelStatus, HostelType, PropertyKind, RentalMode } from "@/generated/prisma/enums";
+import { PROPERTY_KIND_LABELS, termsFor, type Terms } from "@/lib/terms";
 import type { OccupancyStats } from "@/services/hostel/occupancy";
 import { OccupancyBar } from "./occupancy-bar";
 
@@ -12,13 +13,17 @@ export type HostelCardData = {
   code: string;
   city: string | null;
   type: HostelType;
+  kind?: PropertyKind;
+  rentalMode?: RentalMode;
   status: HostelStatus;
   occupancy: OccupancyStats | null;
   _count: { floors: number; rooms: number };
   manager: { firstName: string; lastName: string } | null;
 };
 
-export function HostelCard({ hostel }: { hostel: HostelCardData }) {
+export function HostelCard({ hostel, terms = termsFor("HOSTELS") }: { hostel: HostelCardData; terms?: Terms }) {
+  const whole = hostel.rentalMode === "WHOLE_UNIT";
+  const o = hostel.occupancy;
   return (
     <Link
       href={`/hostels/${hostel.id}`}
@@ -46,11 +51,18 @@ export function HostelCard({ hostel }: { hostel: HostelCardData }) {
         <EnumBadge value={hostel.status} labels={hostelStatusLabels} tones={hostelStatusTones} />
       </div>
       <dl className="grid grid-cols-3 gap-2 text-center">
-        {[
-          ["Floors", hostel._count.floors],
-          ["Rooms", hostel._count.rooms],
-          ["Beds", hostel.occupancy?.totalBeds ?? 0],
-        ].map(([label, value]) => (
+        {(whole
+          ? [
+              ["Floors", hostel._count.floors],
+              ["Units", hostel._count.rooms],
+              ["Vacant", o?.availableBeds ?? 0],
+            ]
+          : [
+              ["Floors", hostel._count.floors],
+              [terms.units, hostel._count.rooms],
+              ["Beds", o?.totalBeds ?? 0],
+            ]
+        ).map(([label, value]) => (
           <div key={label} className="rounded-lg bg-muted/50 py-2">
             <dd className="tabular text-lg font-semibold">{value}</dd>
             <dt className="text-xs text-muted-foreground">{label}</dt>
@@ -59,7 +71,7 @@ export function HostelCard({ hostel }: { hostel: HostelCardData }) {
       </dl>
       <OccupancyBar stats={hostel.occupancy} />
       <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>{hostelTypeLabels[hostel.type]}</span>
+        <span>{hostel.kind && hostel.kind !== "HOSTEL" ? PROPERTY_KIND_LABELS[hostel.kind] : hostelTypeLabels[hostel.type]}</span>
         <span className="truncate">
           {hostel.manager ? `Manager: ${hostel.manager.firstName} ${hostel.manager.lastName}` : "No manager assigned"}
         </span>

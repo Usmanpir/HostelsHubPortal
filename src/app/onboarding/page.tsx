@@ -11,6 +11,7 @@ import {
   listPublicPlans,
   loadOnboardingContext,
   ONBOARDING_STEPS,
+  onboardingStepsFor,
   TOTAL_STEPS,
 } from "@/services/auth/onboarding-service";
 import { getRequestMeta } from "@/services/auth/request";
@@ -24,6 +25,8 @@ import { BedsStep } from "@/components/onboarding/beds-step";
 import { TeamStep } from "@/components/onboarding/team-step";
 import { CompleteStep } from "@/components/onboarding/complete-step";
 import type { PlanSummary } from "@/components/onboarding/types";
+import { suggestsOwners, wizardVocabulary } from "@/components/onboarding/vocabulary";
+import type { WizardStep } from "@/components/onboarding/wizard-chrome";
 
 export default async function OnboardingPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const user = await requireSessionUser();
@@ -64,6 +67,8 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
             currency: "PKR",
             timezone: "Asia/Karachi",
             planKey: preselected && plans.some((p) => p.key === preselected) ? preselected : fallbackPlan,
+            businessType: "HOSTELS",
+            ownersEnabled: true,
           }}
         />
       </Wizard>
@@ -74,6 +79,8 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
   const maxReachable = snapshot.hostel ? TOTAL_STEPS : 2;
   const step = Math.min(Math.max(requested ?? snapshot.resumeStep, 1), maxReachable);
   const org = snapshot.organization;
+  const vocab = wizardVocabulary(org.businessType, snapshot.hostel?.rentalMode);
+  const steps = onboardingStepsFor(org.businessType, snapshot.hostel?.rentalMode);
 
   let content: React.ReactNode;
   switch (step) {
@@ -91,25 +98,58 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
             currency: org.currency,
             timezone: org.timezone as OnboardingOrganizationInput["timezone"],
             planKey: plans.some((p) => p.key === snapshot.planKey) ? snapshot.planKey : fallbackPlan,
+            businessType: org.businessType,
+            ownersEnabled: suggestsOwners(org.businessType) ? org.ownersEnabled : true,
           }}
         />
       );
       break;
     case 2:
-      content = <HostelStep hostel={snapshot.hostel} currency={org.currency} orgCity={org.city} orgCountry={org.country} />;
+      content = (
+        <HostelStep
+          hostel={snapshot.hostel}
+          businessType={org.businessType}
+          currency={org.currency}
+          orgCity={org.city}
+          orgCountry={org.country}
+        />
+      );
       break;
     case 3:
-      content = <FloorsStep hostelId={snapshot.hostel!.id} hostelName={snapshot.hostel!.name} floors={snapshot.floors} />;
+      content = (
+        <FloorsStep
+          hostelId={snapshot.hostel!.id}
+          hostelName={snapshot.hostel!.name}
+          floors={snapshot.floors}
+          propertyNoun={vocab.property.toLowerCase()}
+          unitsNoun={vocab.units.toLowerCase()}
+        />
+      );
       break;
     case 4:
-      content = <RoomsStep floors={snapshot.floors} currency={org.currency} defaultRent={snapshot.hostel!.defaultBedRent} />;
+      content = (
+        <RoomsStep
+          floors={snapshot.floors}
+          currency={org.currency}
+          defaultRent={snapshot.hostel!.defaultBedRent}
+          vocab={vocab}
+          kind={snapshot.hostel!.kind}
+        />
+      );
       break;
     case 5:
-      content = <BedsStep floors={snapshot.floors} currency={org.currency} />;
+      content = <BedsStep floors={snapshot.floors} currency={org.currency} vocab={vocab} />;
       break;
     case 6: {
       const [roles, hostels] = await Promise.all([listInvitableRoles(ctx), listHostelOptions(ctx)]);
-      content = <TeamStep roles={roles} hostels={hostels.map((h) => ({ id: h.id, name: h.name }))} pendingInvites={snapshot.invitations} />;
+      content = (
+        <TeamStep
+          roles={roles}
+          hostels={hostels.map((h) => ({ id: h.id, name: h.name }))}
+          pendingInvites={snapshot.invitations}
+          propertiesLabel={vocab.properties}
+        />
+      );
       break;
     }
     default:
@@ -122,18 +162,29 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
             trialEndsAt: snapshot.trialEndsAt,
             ...snapshot.counts,
           }}
+          vocab={vocab}
         />
       );
   }
 
   return (
-    <Wizard step={step} maxReachable={maxReachable}>
+    <Wizard step={step} maxReachable={maxReachable} steps={steps}>
       {content}
     </Wizard>
   );
 }
 
-async function Wizard({ step, maxReachable, children }: { step: number; maxReachable: number; children: React.ReactNode }) {
+async function Wizard({
+  step,
+  maxReachable,
+  steps = ONBOARDING_STEPS,
+  children,
+}: {
+  step: number;
+  maxReachable: number;
+  steps?: readonly WizardStep[];
+  children: React.ReactNode;
+}) {
   const user = await requireSessionUser();
   const firstName = user.name.split(" ")[0] ?? user.name;
   return (
@@ -141,7 +192,7 @@ async function Wizard({ step, maxReachable, children }: { step: number; maxReach
       <aside className="lg:sticky lg:top-24 lg:self-start">
         <p className="mb-1 hidden text-sm text-muted-foreground lg:block">Welcome, {firstName}</p>
         <p className="mb-5 hidden text-lg font-semibold tracking-tight lg:block">Let&apos;s set up your workspace</p>
-        <WizardProgress steps={ONBOARDING_STEPS} current={step} maxReachable={maxReachable} />
+        <WizardProgress steps={steps} current={step} maxReachable={maxReachable} />
       </aside>
       <div className="min-w-0">{children}</div>
     </div>

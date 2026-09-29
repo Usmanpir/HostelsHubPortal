@@ -9,10 +9,10 @@ import { Button } from "@/components/ui/button";
 import { demoRequestSchema } from "@/lib/validation/auth";
 import { requestDemoAction } from "@/app/(marketing)/actions";
 
-const HOSTEL_COUNTS = [
-  { value: "1", label: "1 hostel" },
-  { value: "2-5", label: "2–5 hostels" },
-  { value: "6-20", label: "6–20 hostels" },
+const PROPERTY_COUNTS = [
+  { value: "1", label: "1 property" },
+  { value: "2-5", label: "2–5 properties" },
+  { value: "6-20", label: "6–20 properties" },
   { value: "20+", label: "More than 20" },
 ];
 
@@ -58,8 +58,8 @@ export function ContactForm() {
         <TextField control={c} name="company" label="Company" autoComplete="organization" />
         <TextField control={c} name="phone" label="Phone" type="tel" autoComplete="tel" />
       </FormGrid>
-      <SelectField control={c} name="hostels" label="How many hostels do you run?" options={HOSTEL_COUNTS} required />
-      <TextareaField control={c} name="message" label="What would you like to see?" rows={4} placeholder="Billing, bed allocation, staff attendance…" />
+      <SelectField control={c} name="hostels" label="How many properties do you manage?" options={PROPERTY_COUNTS} required />
+      <TextareaField control={c} name="message" label="What would you like to see?" rows={4} placeholder="Leases, owner payouts, listings and leads, bed allocation…" />
       {/* Honeypot: hidden from people and assistive tech, filled in by bots. */}
       <div aria-hidden className="absolute -inset-s-[9999px] h-0 w-0 overflow-hidden">
         <label htmlFor="contact-website">Website</label>

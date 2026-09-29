@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python p_detail.py)",
+      "Bash(python p_valid.py)",
+      "Bash(python p_assign.py)",
+      "Bash(sed -i 's/    | { room: { roomNumber: string }; bed: { bedNumber: string }; hostel?: { rentalMode?: string } }/    | { room: { roomNumber: string }; bed: { bedNumber: string }; hostel?: { [key: string]: unknown } }/' src/services/resident/shared.ts)",
+      "Bash(sed -i 's/  const whole = wholeUnit ?? \\(\"room\" in p \\\\&\\\\& p.hostel?.rentalMode === \"WHOLE_UNIT\"\\);/  const whole = wholeUnit ?? \\(\"room\" in p \\\\&\\\\& p.hostel?.[\"rentalMode\"] === \"WHOLE_UNIT\"\\);/' src/services/resident/shared.ts)",
+      "Bash(grep -n 'hostel: { select: { id: true, name: true } },' src/services/resident/assignment-service.ts src/services/resident/resident-service.ts)",
+      "Bash(sed -i 's/hostel: { select: { id: true, name: true } },/hostel: { select: { id: true, name: true, rentalMode: true } },/' src/services/resident/assignment-service.ts)",
+      "Bash(sed -i '219s/hostel: { select: { id: true, name: true } },/hostel: { select: { id: true, name: true, rentalMode: true } },/' src/services/resident/resident-service.ts)",
+      "Bash(python p_picker.py)",
+      "Bash(sed -i 's/{d.moveIn \\\\&\\\\& d.stage === \"CLOSED_WON\" ? \\(/{d.moveIn \\\\&\\\\& d.stage !== \"CLOSED_LOST\" ? \\(/' \"src/app/\\(app\\)/deals/[id]/page.tsx\")",
+      "Bash(mkdir -p \"src/app/\\(app\\)/deals/[id]/edit\")",
+      "Bash(cp \"src/app/\\(app\\)/deals/new/loading.tsx\" \"src/app/\\(app\\)/deals/[id]/edit/loading.tsx\")",
+      "Bash(cd \"/c/Users/USER/Downloads/Personal Projects/HostelManagementPortal\" && sed -n '1,40p' \"src/app/\\(app\\)/residents/actions.ts\" && grep -n \"checkIn\\\\|Action\\(\" \"src/app/\\(app\\)/residents/actions.ts\" | head -30 && sed -n '1,60p' src/components/forms/use-action-form.ts* )",
+      "Bash(grep -n \"title=\\\\\"Edit\\\\|title={\\\\`Edit\\\\|title=\" \"src/app/\\(app\\)/residents/[id]/edit/page.tsx\" \"src/app/\\(app\\)/residents/new/page.tsx\" \"src/app/\\(app\\)/residents/requests/page.tsx\" \"src/app/\\(app\\)/residents/import/page.tsx\")",
+      "PowerShell(foreach \\($f in \"src\\\\lib\\\\validation\\\\owners.ts\",\"src\\\\lib\\\\validation\\\\real-estate.ts\"\\) { \"=== $f\"; Select-String -Path $f -Pattern \"^export const \\(\\\\w+Schema\\)\" | % { $_.Line } }; Select-String -Path src\\\\services\\\\owners\\\\owner-service.ts,src\\\\services\\\\real-estate\\\\listing-service.ts,src\\\\services\\\\real-estate\\\\lead-service.ts,src\\\\services\\\\real-estate\\\\deal-service.ts,src\\\\services\\\\real-estate\\\\viewing-service.ts,src\\\\services\\\\owners\\\\payout-service.ts -Pattern \"^export async function \\(create\\\\w+|scheduleViewing|setListingPublished|changeListingStatus|setOwnerProperties|changeDealStage|addLeadActivity\\)\\\\\\(\" | % { \"$\\($_.Filename\\): $\\($_.Line\\)\" })",
+      "PowerShell($f=\"prisma\\\\seed-property-demo.ts\"; $c=[IO.File]::ReadAllText\\(\"$PWD\\\\$f\"\\).Replace\\('  const vacantShop = units[13]!; // Shop S-2','  const vacantShop = units[16]!; // Shop S-3 \\(units: 0–11 apartments, 12–13 house, 14–17 shops\\)'\\); [IO.File]::WriteAllText\\(\"$PWD\\\\$f\",$c\\); npx prisma db seed 2>&1 | Select-String -Pattern \"→|✓|Error|error|skipping\" | Select-Object -First 15)",
+      "PowerShell($f=\"prisma\\\\seed-property-demo.ts\"; \\(Select-String -Path $f -Pattern 'addDays\\\\\\(today, 2\\\\\\), time'\\).Count; Test-Path scripts\\\\tmp-cleanup.mts)",
+      "PowerShell($p = \\(Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue\\).OwningProcess | Select-Object -Unique; foreach \\($id in $p\\) { if \\(\\(Get-CimInstance Win32_Process -Filter \"ProcessId=$id\"\\).CommandLine -match \"HostelManagementPortal\"\\) { Stop-Process -Id $id -Force -Confirm:$false; \"stopped\" } }; npm run lint 2>&1 | Select-Object -Last 3; npm run build 2>&1 | Select-String -Pattern \"Compiled|rror|Failed\" | Select-Object -First 6)",
+      "PowerShell(Start-Sleep 7; $env:BASE_URL=\"http://localhost:3000\"; node scripts/smoke.mjs 2>&1 | Select-String \"✗|✓ All|failure|Error|^Property|^Agent|^Public\")",
+      "PowerShell($env:BASE_URL=\"http://localhost:3000\"; node scripts/smoke.mjs 2>&1 | Select-String \"✗|✓ All|failure|other tenant|disabled public\")",
+      "PowerShell(npx tsc --noEmit -p . 2>&1)",
+      "PowerShell(npx eslint \"src/app/\\(app\\)/residents/page.tsx\" scripts/smoke.mjs)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\USER\\Downloads\\Personal Projects\\HostelManagementPortal\\src\\components\\forms"
+    ]
+  }
+}

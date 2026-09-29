@@ -1,5 +1,5 @@
 import { en, type Messages } from "./messages/en";
-import { navLabelOverrides } from "@/lib/terms";
+import { navLabelOverrides, termsFor } from "@/lib/terms";
 import type { BusinessType } from "@/generated/prisma/enums";
 
 export const SUPPORTED_LOCALES = ["en"] as const;
@@ -17,7 +17,15 @@ export function getMessages(locale: string | null | undefined, businessType?: Bu
   const base = dictionaries[(locale ?? "en") as Locale] ?? en;
   const overrides = navLabelOverrides(businessType);
   if (!Object.keys(overrides).length) return base;
-  return { ...base, nav: { ...base.nav, ...overrides } };
+  const t = termsFor(businessType);
+  return {
+    ...base,
+    nav: { ...base.nav, ...overrides },
+    common: {
+      ...base.common,
+      searchPlaceholder: `Search ${t.residents.toLowerCase()}, ${t.units.toLowerCase()}, invoices…`,
+    },
+  };
 }
 
 /** Text direction for <html dir>. Urdu/Arabic render right-to-left. */

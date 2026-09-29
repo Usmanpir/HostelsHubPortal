@@ -6,7 +6,8 @@ import { StatCard } from "@/components/shared/stat-card";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ExportMenu } from "@/components/data-table/export-menu";
 import { ResidentsTable } from "@/components/residents/residents-table";
-import { requireTenantPage } from "@/lib/tenant/server";
+import { getTenantContext, requireTenantPage } from "@/lib/tenant/server";
+import { termsFor } from "@/lib/terms";
 import { can } from "@/lib/tenant/context";
 import { listHostelOptions } from "@/services/hostel/hostel-service";
 import { getResidentStatusCounts, listResidents } from "@/services/resident/resident-service";
@@ -14,7 +15,10 @@ import { parseResidentFilters } from "@/services/resident/filters";
 import { residentStatusLabels } from "@/config/labels";
 import { RESIDENT_STATUSES } from "@/lib/validation/resident";
 
-export const metadata = { title: "Residents" };
+export async function generateMetadata() {
+  const ctx = await getTenantContext();
+  return { title: termsFor(ctx?.organization.businessType).residents };
+}
 
 export default async function ResidentsPage({ searchParams }: PageProps<"/residents">) {
   const ctx = await requireTenantPage("residents.view");
@@ -25,12 +29,20 @@ export default async function ResidentsPage({ searchParams }: PageProps<"/reside
   const canManage = can(ctx, "residents.manage");
   const canAssign = can(ctx, "assignments.manage");
   const filtered = !!(filters.q || filters.status || filters.assigned || filters.hostelId);
+  const t = termsFor(ctx.organization.businessType);
+  const hostelOrg = ctx.organization.businessType === "HOSTELS";
+  const resident = t.resident.toLowerCase();
+  const residents = t.residents.toLowerCase();
 
   return (
     <>
       <PageHeader
-        title="Residents"
-        description="Everyone living in, reserved for, or previously staying at your hostels."
+        title={t.residents}
+        description={
+          hostelOrg
+            ? "Everyone living in, reserved for, or previously staying at your hostels."
+            : `Every ${resident} — current, upcoming and past — across your ${t.properties.toLowerCase()}.`
+        }
         actions={
           <>
             {canAssign ? (
@@ -38,13 +50,13 @@ export default async function ResidentsPage({ searchParams }: PageProps<"/reside
                 <Button asChild variant="outline">
                   <Link href="/residents/check-out">
                     <LogOut />
-                    Check out
+                    {t.checkOut}
                   </Link>
                 </Button>
                 <Button asChild variant="outline">
                   <Link href="/residents/check-in">
                     <LogIn />
-                    Check in
+                    {t.checkIn}
                   </Link>
                 </Button>
               </>
@@ -60,7 +72,7 @@ export default async function ResidentsPage({ searchParams }: PageProps<"/reside
                 <Button asChild>
                   <Link href="/residents/new">
                     <Plus />
-                    Add resident
+                    Add {resident}
                   </Link>
                 </Button>
               </>
@@ -91,25 +103,36 @@ export default async function ResidentsPage({ searchParams }: PageProps<"/reside
           },
           {
             key: "assigned",
-            label: "Bed",
-            options: [
-              { value: "yes", label: "Has a bed" },
-              { value: "no", label: "No bed" },
-            ],
+            label: hostelOrg ? "Bed" : t.unit,
+            options: hostelOrg
+              ? [
+                  { value: "yes", label: "Has a bed" },
+                  { value: "no", label: "No bed" },
+                ]
+              : [
+                  { value: "yes", label: `Has a ${t.unit.toLowerCase()}` },
+                  { value: "no", label: `No ${t.unit.toLowerCase()}` },
+                ],
           },
-          ...(showHostel ? [{ key: "hostelId", label: "Hostel", options: hostels.map((h) => ({ value: h.id, label: h.name })) }] : []),
+          ...(showHostel ? [{ key: "hostelId", label: t.property, options: hostels.map((h) => ({ value: h.id, label: h.name })) }] : []),
         ]}
         empty={
           <EmptyState
             icon={Users}
-            title={filtered ? "No residents match your filters" : "No residents yet"}
-            description={filtered ? "Try a different search or clear the filters." : "Add your first resident, then check them in to a bed."}
+            title={filtered ? `No ${residents} match your filters` : `No ${residents} yet`}
+            description={
+              filtered
+                ? "Try a different search or clear the filters."
+                : hostelOrg
+                  ? "Add your first resident, then check them in to a bed."
+                  : `Add your first ${resident}, then move them in to a ${t.unit.toLowerCase()}.`
+            }
             action={
               !filtered && canManage ? (
                 <Button asChild>
                   <Link href="/residents/new">
                     <Plus />
-                    Add resident
+                    Add {resident}
                   </Link>
                 </Button>
               ) : null

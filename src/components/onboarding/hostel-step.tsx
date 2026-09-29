@@ -2,15 +2,19 @@
 
 import { useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useWatch } from "react-hook-form";
 import { ArrowRight } from "lucide-react";
+import type { BusinessType, PropertyKind } from "@/generated/prisma/enums";
 import { FormGrid, MoneyField, SelectField, TextField } from "@/components/forms/fields";
 import { SubmitButton } from "@/components/forms/submit-button";
 import { useActionForm } from "@/components/forms/use-action-form";
 import { hostelGenderLabels, hostelTypeLabels, optionsFrom } from "@/config/labels";
 import { hostelSchema, type HostelInput } from "@/lib/validation/property";
+import { defaultRentalMode, PROPERTY_KIND_LABELS, RENTAL_MODE_LABELS } from "@/lib/terms";
 import { saveHostelAction } from "@/app/onboarding/actions";
 import type { OnboardingHostel } from "./types";
 import { StepCard, StepFooter } from "./wizard-chrome";
+import { defaultPropertyKind, wizardVocabulary } from "./vocabulary";
 
 /** "Sunrise Boys Hostel" → "SBH-01", "Sunrise" → "SUNR-01". */
 export function suggestHostelCode(name: string) {
@@ -25,13 +29,18 @@ export function suggestHostelCode(name: string) {
   return base.length >= 2 ? `${base}-01` : `${base}H-01`;
 }
 
-function toFormValues(hostel: OnboardingHostel | null, defaults: { city?: string | null; country?: string | null }): HostelInput {
+function toFormValues(
+  hostel: OnboardingHostel | null,
+  defaults: { city?: string | null; country?: string | null; kind: PropertyKind },
+): HostelInput {
   if (!hostel) {
     return {
       name: "",
       code: "",
       type: "OTHER",
       gender: "MIXED",
+      kind: defaults.kind,
+      rentalMode: defaultRentalMode(defaults.kind),
       status: "ACTIVE",
       city: defaults.city ?? "",
       country: defaults.country ?? "",
@@ -45,6 +54,8 @@ function toFormValues(hostel: OnboardingHostel | null, defaults: { city?: string
     code: hostel.code,
     type: hostel.type,
     gender: hostel.gender,
+    kind: hostel.kind,
+    rentalMode: hostel.rentalMode,
     status: hostel.status === "INACTIVE" ? "INACTIVE" : "ACTIVE",
     city: hostel.city ?? "",
     country: hostel.country ?? "",
@@ -69,7 +80,9 @@ export function HostelStep({
   currency,
   orgCity,
   orgCountry,
+  businessType,
 }: {
+  businessType: BusinessType;
   hostel: OnboardingHostel | null;
   currency: string;
   orgCity: string | null;
@@ -79,18 +92,21 @@ export function HostelStep({
   const codeTouched = useRef(!!hostel);
   const { form, onSubmit, pending } = useActionForm({
     schema: hostelSchema,
-    defaultValues: toFormValues(hostel, { city: orgCity, country: orgCountry }),
+    defaultValues: toFormValues(hostel, { city: orgCity, country: orgCountry, kind: defaultPropertyKind(businessType) }),
     action: (values) => saveHostelAction(hostel?.id ?? null, values),
-    successMessage: hostel ? "Hostel updated" : "Hostel created",
+    successMessage: hostel ? `${vocabFor(businessType).property} updated` : `${vocabFor(businessType).property} created`,
     onSuccess: () => router.push("/onboarding?step=3"),
   });
   const c = form.control;
+  const rentalMode = useWatch({ control: c, name: "rentalMode" });
+  const v = wizardVocabulary(businessType, rentalMode);
+  const noun = v.property.toLowerCase();
 
   return (
     <StepCard
       eyebrow="Step 2"
-      title={hostel ? "Your first hostel" : "Add your first hostel"}
-      description="You can add more properties later from the Hostels page."
+      title={hostel ? `Your first ${noun}` : `Add your first ${noun}`}
+      description={`You can add more properties later from the ${v.properties} page.`}
     >
       <form
         onSubmit={onSubmit}
@@ -106,7 +122,25 @@ export function HostelStep({
         }}
       >
         <FormGrid>
-          <TextField control={c} name="name" label="Hostel name" required placeholder="Sunrise Boys Hostel" />
+          {v.isHostelOrg ? null : (
+            <SelectField
+              control={c}
+              name="kind"
+              label="Property type"
+              required
+              className="sm:col-span-2"
+              options={optionsFrom(PROPERTY_KIND_LABELS)}
+              description={rentalMode ? `Rented ${RENTAL_MODE_LABELS[rentalMode].toLowerCase()}` : undefined}
+              onValueChange={(kind) => form.setValue("rentalMode", defaultRentalMode(kind as PropertyKind), { shouldDirty: true })}
+            />
+          )}
+          <TextField
+            control={c}
+            name="name"
+            label={`${v.property} name`}
+            required
+            placeholder={v.isHostelOrg ? "Sunrise Boys Hostel" : v.wholeUnit ? "Sunrise Heights" : "Sunrise Residency"}
+          />
           <TextField
             control={c}
             name="code"
@@ -115,23 +149,40 @@ export function HostelStep({
             placeholder="SBH-01"
             description="Used on invoices and reports. Letters, numbers and dashes."
           />
-          <SelectField control={c} name="type" label="Hostel type" options={optionsFrom(hostelTypeLabels)} />
-          <SelectField control={c} name="gender" label="Residents" options={optionsFrom(hostelGenderLabels)} />
+          {v.wholeUnit ? null : (
+            <>
+              <SelectField control={c} name="type" label="Hostel type" options={optionsFrom(hostelTypeLabels)} />
+              <SelectField control={c} name="gender" label={v.residents} options={optionsFrom(hostelGenderLabels)} />
+            </>
+          )}
           <TextField control={c} name="city" label="City" />
           <TextField control={c} name="country" label="Country" />
-          <MoneyField control={c} name="defaultBedRent" label="Default monthly rent per bed" currency={currency} />
+          <MoneyField
+            control={c}
+            name="defaultBedRent"
+            label={v.wholeUnit ? "Default monthly rent per unit" : "Default monthly rent per bed"}
+            currency={currency}
+          />
           <MoneyField control={c} name="defaultDeposit" label="Default security deposit" currency={currency} />
         </FormGrid>
         <p className="text-xs text-muted-foreground">
-          Defaults are suggested when checking residents in and can be overridden per room or bed.
+          {v.isHostelOrg && !v.wholeUnit
+            ? "Defaults are suggested when checking residents in and can be overridden per room or bed."
+            : v.wholeUnit
+              ? `Defaults are suggested when moving ${v.residents.toLowerCase()} in and can be overridden per unit.`
+              : `Defaults are suggested when moving ${v.residents.toLowerCase()} in and can be overridden per ${v.unit.toLowerCase()} or bed.`}
         </p>
         <StepFooter step={2}>
           <SubmitButton pending={pending} className="h-9 px-4">
-            {hostel ? "Save and continue" : "Create hostel"}
+            {hostel ? "Save and continue" : `Create ${noun}`}
             <ArrowRight />
           </SubmitButton>
         </StepFooter>
       </form>
     </StepCard>
   );
+}
+
+function vocabFor(businessType: BusinessType) {
+  return wizardVocabulary(businessType, null);
 }

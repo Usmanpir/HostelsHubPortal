@@ -75,7 +75,7 @@ export async function listHostelOptions(ctx: TenantContext, options: { includeAr
       ...(options.includeArchived ? {} : { archivedAt: null }),
     },
     orderBy: { name: "asc" },
-    select: { id: true, name: true, code: true, city: true, status: true },
+    select: { id: true, name: true, code: true, city: true, status: true, kind: true, rentalMode: true },
   });
   return rows;
 }
@@ -87,6 +87,7 @@ export async function getHostel(ctx: TenantContext, id: string) {
     where: { AND: [{ id }, accessibleHostelWhere(ctx)] },
     include: {
       manager: { select: { id: true, firstName: true, lastName: true, phone: true } },
+      owner: { select: { id: true, name: true, ownerCode: true, commissionPercent: true } },
       floors: {
         where: { archivedAt: null },
         orderBy: { floorNumber: "asc" },
@@ -166,6 +167,14 @@ export async function updateHostel(ctx: TenantContext, id: string, raw: HostelIn
   const before = await prisma.hostel.findFirst({ where: { id, organizationId: ctx.organizationId } });
   if (!before) throw new NotFoundError("Hostel");
   if (before.status === "ARCHIVED") throw new BusinessRuleError("Restore the hostel before editing it.");
+  if (input.rentalMode === "WHOLE_UNIT" && before.rentalMode !== "WHOLE_UNIT") {
+    const shared = await prisma.room.count({ where: { hostelId: id, archivedAt: null, capacity: { gt: 1 } } });
+    if (shared > 0) {
+      throw new BusinessRuleError(
+        `${shared} room(s) in this property hold more than one bed. Set their capacity to 1 before switching to whole-unit rentals.`,
+      );
+    }
+  }
 
   if (input.code !== before.code) {
     const clash = await prisma.hostel.findUnique({
@@ -217,4 +226,24 @@ export async function restoreHostel(ctx: TenantContext, id: string) {
     await tx.hostel.update({ where: { id }, data: { status: "ACTIVE", archivedAt: null } });
     await audit(actorOf(ctx), { action: "hostel.restored", entityType: "Hostel", entityId: id }, tx);
   });
+}
+
+/**
+ * Which rental modes the organization actually uses (non-archived properties).
+ * Used to hide bed-level UI for orgs that only lease whole units.
+ */
+export async function getRentalModeUsage(ctx: TenantContext) {
+  const rows = await prisma.hostel.groupBy({
+    by: ["rentalMode"],
+    where: { ...accessibleHostelWhere(ctx), archivedAt: null },
+    _count: { _all: true },
+  });
+  const byBed = rows.some((r) => r.rentalMode === "BY_BED");
+  const wholeUnit = rows.some((r) => r.rentalMode === "WHOLE_UNIT");
+  // An org with no properties yet: follow its business type.
+  if (!byBed && !wholeUnit) {
+    const hostelOrg = ctx.organization.businessType === "HOSTELS";
+    return { byBed: hostelOrg, wholeUnit: !hostelOrg };
+  }
+  return { byBed, wholeUnit };
 }

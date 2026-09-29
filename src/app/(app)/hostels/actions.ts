@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { runAction } from "@/lib/actions";
 import { tenantOrThrow } from "@/lib/tenant/server";
+import type { TenantContext } from "@/lib/tenant/context";
+import { termsFor, type Terms } from "@/lib/terms";
 import type { BedInput, BedUpdateInput, BulkRoomsInput, FloorInput, HostelInput, RoomInput } from "@/lib/validation/property";
 import { archiveHostel, createHostel, restoreHostel, updateHostel } from "@/services/hostel/hostel-service";
 import {
@@ -22,37 +24,48 @@ import {
 // Server actions are thin: resolve the tenant from the session, call the
 // service (which validates + authorizes), revalidate affected views.
 
+/** runAction with a success message in the organization's vocabulary (Hostel vs Property). */
+async function runWithTerms<T>(fn: (ctx: TenantContext) => Promise<T>, message: (t: Terms) => string) {
+  let terms: Terms | null = null;
+  const result = await runAction(async () => {
+    const ctx = await tenantOrThrow();
+    terms = termsFor(ctx.organization.businessType);
+    return fn(ctx);
+  });
+  return result.ok && terms ? { ...result, message: message(terms) } : result;
+}
+
 export async function createHostelAction(input: HostelInput) {
-  return runAction(async () => {
-    const hostel = await createHostel(await tenantOrThrow(), input);
+  return runWithTerms(async (ctx) => {
+    const hostel = await createHostel(ctx, input);
     revalidatePath("/hostels");
     return { id: hostel.id };
-  }, "Hostel created");
+  }, (t) => `${t.property} created`);
 }
 
 export async function updateHostelAction(id: string, input: HostelInput) {
-  return runAction(async () => {
-    await updateHostel(await tenantOrThrow(), id, input);
+  return runWithTerms(async (ctx) => {
+    await updateHostel(ctx, id, input);
     revalidatePath("/hostels");
     revalidatePath(`/hostels/${id}`);
     return { id };
-  }, "Hostel updated");
+  }, (t) => `${t.property} updated`);
 }
 
 export async function archiveHostelAction(id: string) {
-  return runAction(async () => {
-    await archiveHostel(await tenantOrThrow(), id);
+  return runWithTerms(async (ctx) => {
+    await archiveHostel(ctx, id);
     revalidatePath("/hostels");
     return null;
-  }, "Hostel archived");
+  }, (t) => `${t.property} archived`);
 }
 
 export async function restoreHostelAction(id: string) {
-  return runAction(async () => {
-    await restoreHostel(await tenantOrThrow(), id);
+  return runWithTerms(async (ctx) => {
+    await restoreHostel(ctx, id);
     revalidatePath("/hostels");
     return null;
-  }, "Hostel restored");
+  }, (t) => `${t.property} restored`);
 }
 
 export async function createFloorAction(input: FloorInput) {
@@ -80,11 +93,11 @@ export async function archiveFloorAction(id: string) {
 }
 
 export async function createRoomAction(input: RoomInput) {
-  return runAction(async () => {
-    const room = await createRoom(await tenantOrThrow(), input);
+  return runWithTerms(async (ctx) => {
+    const room = await createRoom(ctx, input);
     revalidatePath("/hostels", "layout");
     return { id: room.id };
-  }, "Room created");
+  }, (t) => `${t.unit} created`);
 }
 
 export async function bulkCreateRoomsAction(input: BulkRoomsInput) {
@@ -96,19 +109,19 @@ export async function bulkCreateRoomsAction(input: BulkRoomsInput) {
 }
 
 export async function updateRoomAction(id: string, input: RoomInput) {
-  return runAction(async () => {
-    await updateRoom(await tenantOrThrow(), id, input);
+  return runWithTerms(async (ctx) => {
+    await updateRoom(ctx, id, input);
     revalidatePath("/hostels", "layout");
     return { id };
-  }, "Room updated");
+  }, (t) => `${t.unit} updated`);
 }
 
 export async function archiveRoomAction(id: string) {
-  return runAction(async () => {
-    await archiveRoom(await tenantOrThrow(), id);
+  return runWithTerms(async (ctx) => {
+    await archiveRoom(ctx, id);
     revalidatePath("/hostels", "layout");
     return null;
-  }, "Room archived");
+  }, (t) => `${t.unit} archived`);
 }
 
 export async function createBedAction(input: BedInput) {

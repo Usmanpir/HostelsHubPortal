@@ -13,13 +13,16 @@ import { formatMoney } from "@/lib/format";
 import { addBedAction } from "@/app/onboarding/actions";
 import type { OnboardingFloor } from "./types";
 import { StepCard, StepFooter } from "./wizard-chrome";
+import type { WizardVocabulary } from "./vocabulary";
 
-export function BedsStep({ floors, currency }: { floors: OnboardingFloor[]; currency: string }) {
+export function BedsStep({ floors, currency, vocab }: { floors: OnboardingFloor[]; currency: string; vocab?: WizardVocabulary }) {
   const router = useRouter();
   const [busyRoom, setBusyRoom] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const rooms = floors.flatMap((f) => f.rooms);
   const beds = rooms.reduce((n, r) => n + r.bedCount, 0);
+
+  if (vocab?.wholeUnit) return <UnitsReview floors={floors} currency={currency} />;
 
   const addBed = (roomId: string) => {
     setBusyRoom(roomId);
@@ -126,5 +129,66 @@ function Summary({ icon: Icon, label, value }: { icon: typeof BedDouble; label: 
       </div>
       <p className="mt-1 text-2xl font-semibold tracking-tight tabular">{value}</p>
     </div>
+  );
+}
+
+/**
+ * Whole-unit properties: every unit already has its single bed, so this step
+ * is just a read-only review.
+ */
+function UnitsReview({ floors, currency }: { floors: OnboardingFloor[]; currency: string }) {
+  const units = floors.flatMap((f) => f.rooms);
+  return (
+    <StepCard
+      eyebrow="Step 5"
+      title="Review units"
+      description="Each unit is rented to one tenant as a whole, so there are no beds to set up. You can fine-tune unit details and rent later."
+    >
+      <div className="mb-6 grid grid-cols-2 gap-3">
+        <Summary icon={Layers} label="Floors" value={floors.length} />
+        <Summary icon={DoorOpen} label="Units" value={units.length} />
+      </div>
+      {units.length === 0 ? (
+        <EmptyState
+          icon={DoorOpen}
+          title="No units yet"
+          description="Create units first and they will show up here."
+          action={
+            <Button asChild variant="outline">
+              <Link href="/onboarding?step=4">Create units</Link>
+            </Button>
+          }
+        />
+      ) : (
+        <div className="grid gap-5">
+          {floors
+            .filter((f) => f.rooms.length)
+            .map((floor) => (
+              <div key={floor.id}>
+                <h2 className="mb-2 text-sm font-medium">{floor.name}</h2>
+                <ul className="divide-y rounded-xl border">
+                  {floor.rooms.map((room) => (
+                    <li key={room.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5">
+                      <span className="w-16 font-medium tabular">{room.roomNumber}</span>
+                      <span className="text-sm text-muted-foreground">{roomTypeLabels[room.roomType]}</span>
+                      {room.rent !== null ? (
+                        <span className="ms-auto text-xs text-muted-foreground tabular">{formatMoney(room.rent, currency)}/month</span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+        </div>
+      )}
+      <StepFooter step={5}>
+        <Button asChild className="h-9 px-4">
+          <Link href="/onboarding?step=6">
+            Looks good
+            <ArrowRight />
+          </Link>
+        </Button>
+      </StepFooter>
+    </StepCard>
   );
 }

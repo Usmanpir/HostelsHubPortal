@@ -7,7 +7,11 @@ const COLUMNS = [
     title: "Product",
     links: [
       { href: "/#features", label: "Features" },
-      { href: "/#multi-hostel", label: "Multi-hostel" },
+      { href: "/#properties", label: "Multi-property" },
+      { href: "/#leases", label: "Rentals & leases" },
+      { href: "/#owners", label: "Owner payouts" },
+      { href: "/#crm", label: "Dealer CRM" },
+      { href: "/#listings", label: "Public listings" },
       { href: "/#billing", label: "Billing" },
       { href: "/#resident-portal", label: "Resident portal" },
       { href: "/#pricing", label: "Pricing" },
@@ -39,8 +43,8 @@ export function MarketingFooter() {
         <div className="max-w-xs">
           <BrandLogo />
           <p className="mt-4 text-sm text-pretty text-muted-foreground">
-            Hostel management software for operators running one property or many — rooms, residents, staff, billing and
-            reports in one place.
+            Property management software for hostels, rentals and real estate — beds and leases, billing, owner payouts,
+            a dealer CRM and public listings in one place.
           </p>
         </div>
         {COLUMNS.map((col) => (
@@ -63,7 +67,7 @@ export function MarketingFooter() {
           <p>
             © {new Date().getFullYear()} {APP_NAME}. All rights reserved.
           </p>
-          <p>Made for hostel, PG and dormitory operators.</p>
+          <p>Made for hostel operators, landlords, property managers and real-estate dealers.</p>
         </div>
       </div>
     </footer>

@@ -1,14 +1,18 @@
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/shared/page-header";
 import { ResidentForm } from "@/components/residents/resident-form";
-import { requireTenantPage } from "@/lib/tenant/server";
+import { getTenantContext, requireTenantPage } from "@/lib/tenant/server";
+import { termsFor } from "@/lib/terms";
 import { loadOr404 } from "@/lib/page-helpers";
 import { toDateInput } from "@/lib/format";
 import { residentStatusLabels } from "@/config/labels";
 import { listHostelOptions } from "@/services/hostel/hostel-service";
 import { getResident } from "@/services/resident/resident-service";
 
-export const metadata = { title: "Edit resident" };
+export async function generateMetadata() {
+  const ctx = await getTenantContext();
+  return { title: `Edit ${termsFor(ctx?.organization.businessType).resident.toLowerCase()}` };
+}
 
 export default async function EditResidentPage({ params }: PageProps<"/residents/[id]/edit">) {
   const ctx = await requireTenantPage("residents.manage");
@@ -22,7 +26,7 @@ export default async function EditResidentPage({ params }: PageProps<"/residents
       <PageHeader
         title={`Edit ${r.name}`}
         breadcrumbs={[
-          { label: "Residents", href: "/residents" },
+          { label: termsFor(ctx.organization.businessType).residents, href: "/residents" },
           { label: r.name, href: `/residents/${r.id}` },
           { label: "Edit" },
         ]}

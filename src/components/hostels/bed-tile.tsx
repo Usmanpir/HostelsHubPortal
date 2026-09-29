@@ -18,6 +18,8 @@ export type BedTileData = {
   bedNumber: string;
   status: BedStatus;
   residentName?: string | null;
+  /** Tile heading; defaults to "Bed N". Whole units pass "Unit 101". */
+  label?: string;
 };
 
 export function BedTile({ bed, onClick, compact }: { bed: BedTileData; onClick?: () => void; compact?: boolean }) {
@@ -31,11 +33,11 @@ export function BedTile({ bed, onClick, compact }: { bed: BedTileData; onClick?:
         compact ? "h-9" : "h-12",
         bedToneClasses[bed.status],
       )}
-      aria-label={`Bed ${bed.bedNumber}: ${bedStatusLabels[bed.status]}${bed.residentName ? `, ${bed.residentName}` : ""}`}
+      aria-label={`${bed.label ?? `Bed ${bed.bedNumber}`}: ${bedStatusLabels[bed.status]}${bed.residentName ? `, ${bed.residentName}` : ""}`}
     >
       <Icon className="size-4 shrink-0" />
       <span className="flex min-w-0 flex-col leading-tight">
-        <span className="font-semibold">Bed {bed.bedNumber}</span>
+        <span className="font-semibold">{bed.label ?? `Bed ${bed.bedNumber}`}</span>
         {!compact ? (
           <span className="truncate opacity-80">{bed.residentName ?? bedStatusLabels[bed.status]}</span>
         ) : null}

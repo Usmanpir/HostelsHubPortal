@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight, Building2, CheckCircle2, Circle, DoorOpen, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import type { DashboardWords } from "./dashboard-words";
 
 type Step = { title: string; description: string; href: string; cta: string; done: boolean; allowed: boolean; icon: typeof Building2 };
 
@@ -9,34 +10,36 @@ type Step = { title: string; description: string; href: string; cta: string; don
 export function DashboardEmpty({
   setup,
   permissions,
+  words: w,
 }: {
   setup: { hostels: number; rooms: number; residents: number };
   permissions: ReadonlySet<string>;
+  words: DashboardWords;
 }) {
   const steps: Step[] = [
     {
-      title: "Add your first hostel",
+      title: `Add your first ${w.property}`,
       description: "Name, address, rent defaults and house rules.",
       href: "/hostels/new",
-      cta: "Add hostel",
+      cta: `Add ${w.property}`,
       done: setup.hostels > 0,
       allowed: permissions.has("hostels.manage"),
       icon: Building2,
     },
     {
-      title: "Create floors, rooms and beds",
-      description: "Bulk-add rooms — beds are generated automatically.",
+      title: w.isHostel ? "Create floors, rooms and beds" : `Create floors and ${w.units}`,
+      description: w.isHostel ? "Bulk-add rooms — beds are generated automatically." : `Bulk-add ${w.units} to each ${w.property}.`,
       href: "/hostels/rooms",
-      cta: "Set up rooms",
+      cta: `Set up ${w.units}`,
       done: setup.rooms > 0,
       allowed: permissions.has("rooms.manage"),
       icon: DoorOpen,
     },
     {
-      title: "Register residents",
-      description: "Add residents and check them in to a bed.",
+      title: `Register ${w.residents}`,
+      description: w.isHostel ? "Add residents and check them in to a bed." : `Add ${w.residents} and move them in to a ${w.capacityOne}.`,
       href: "/residents/new",
-      cta: "Add resident",
+      cta: `Add ${w.resident}`,
       done: setup.residents > 0,
       allowed: permissions.has("residents.manage"),
       icon: UserPlus,
@@ -48,7 +51,7 @@ export function DashboardEmpty({
       <div className="max-w-xl">
         <h2 className="text-lg font-semibold tracking-tight">Let&apos;s set up your property</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Your dashboard fills in with occupancy, revenue and activity as soon as you add a hostel. Three steps get you running.
+          Your dashboard fills in with occupancy, revenue and activity as soon as you add a {w.property}. Three steps get you running.
         </p>
       </div>
       <ol className="mt-6 grid gap-3 md:grid-cols-3">

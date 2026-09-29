@@ -17,11 +17,13 @@ import {
   cancelReservationSchema,
   checkInSchema,
   checkOutSchema,
+  renewLeaseSchema,
   transferSchema,
   type ActivateReservationInput,
   type CancelReservationInput,
   type CheckInInput,
   type CheckOutInput,
+  type RenewLeaseInput,
   type TransferInput,
 } from "@/lib/validation/resident";
 import { invoiceSchema } from "@/lib/validation/finance";
@@ -61,6 +63,40 @@ export function effectiveBedRent(bed: { monthlyRent: unknown }, room: { rent: un
   return pick(bed.monthlyRent) ?? pick(room.rent) ?? pick(hostel.defaultBedRent) ?? 0;
 }
 
+/** Default months between automatic rent increments when only a percentage is given. */
+export const DEFAULT_INCREMENT_INTERVAL_MONTHS = 12;
+/** A lease is "expiring soon" within this many days of its end date. */
+export const LEASE_EXPIRING_DAYS = 30;
+
+/**
+ * Normalise lease inputs into assignment columns. An increment percentage
+ * without an interval uses 12 months; the first increment is scheduled one
+ * interval after `startDate`.
+ */
+export function leaseColumns(
+  input: {
+    leaseEndDate?: Date | null;
+    noticePeriodDays?: number | null;
+    advanceRent?: number | null;
+    rentIncrementPercent?: number | null;
+    incrementIntervalMonths?: number | null;
+    leaseTerms?: string | null;
+  },
+  startDate: Date,
+) {
+  const pct = input.rentIncrementPercent && input.rentIncrementPercent > 0 ? round2(input.rentIncrementPercent) : null;
+  const interval = pct ? (input.incrementIntervalMonths ?? DEFAULT_INCREMENT_INTERVAL_MONTHS) : (input.incrementIntervalMonths ?? null);
+  return {
+    leaseEndDate: input.leaseEndDate ? dateOnly(input.leaseEndDate) : null,
+    noticePeriodDays: input.noticePeriodDays ?? null,
+    advanceRent: input.advanceRent && input.advanceRent > 0 ? round2(input.advanceRent) : null,
+    rentIncrementPercent: pct,
+    incrementIntervalMonths: interval,
+    nextIncrementDate: pct && interval ? addMonthsUtc(dateOnly(startDate), interval) : null,
+    leaseTerms: input.leaseTerms ?? null,
+  };
+}
+
 // ─── Pickers for the check-in / transfer workflows ──────────────────────────
 
 /** Hostels the member can place residents in, with rent defaults. */
@@ -74,7 +110,17 @@ export async function listAssignableHostels(ctx: TenantContext) {
       ...(ctx.allHostels ? {} : { id: { in: ctx.accessibleHostelIds } }),
     },
     orderBy: { name: "asc" },
-    select: { id: true, name: true, code: true, city: true, defaultBedRent: true, defaultDeposit: true, admissionFee: true },
+    select: {
+      id: true,
+      name: true,
+      code: true,
+      city: true,
+      defaultBedRent: true,
+      defaultDeposit: true,
+      admissionFee: true,
+      rentalMode: true,
+      kind: true,
+    },
   });
   const available = await prisma.bed.groupBy({
     by: ["hostelId"],
@@ -101,7 +147,7 @@ export async function getHostelBedMap(ctx: TenantContext, hostelId: string) {
   assertHostelAccess(ctx, hostelId);
   const hostel = await prisma.hostel.findFirst({
     where: { id: hostelId, organizationId: ctx.organizationId, archivedAt: null },
-    select: { id: true, name: true, defaultBedRent: true, defaultDeposit: true, admissionFee: true },
+    select: { id: true, name: true, defaultBedRent: true, defaultDeposit: true, admissionFee: true, rentalMode: true },
   });
   if (!hostel) throw new NotFoundError("Hostel");
   const floors = await prisma.floor.findMany({
@@ -265,7 +311,7 @@ export async function getCheckOutPreview(ctx: TenantContext, residentId: string)
     where: { activeResidentId: residentId, status: "ACTIVE", ...accessWhere(ctx) },
     include: {
       resident: { select: { id: true, firstName: true, lastName: true, residentCode: true, phone: true, photoFileId: true } },
-      hostel: { select: { id: true, name: true } },
+      hostel: { select: { id: true, name: true, rentalMode: true } },
       room: { select: { id: true, roomNumber: true, floor: { select: { name: true } } } },
       bed: { select: { id: true, bedNumber: true } },
     },
@@ -285,7 +331,7 @@ export async function getCheckOutPreview(ctx: TenantContext, residentId: string)
 
 const targetBedInclude = {
   room: { select: { id: true, roomNumber: true, capacity: true, status: true, archivedAt: true, rent: true, floorId: true } },
-  hostel: { select: { id: true, name: true, status: true, archivedAt: true, admissionFee: true, defaultBedRent: true } },
+  hostel: { select: { id: true, name: true, status: true, archivedAt: true, admissionFee: true, defaultBedRent: true, rentalMode: true } },
 } satisfies Prisma.BedInclude;
 
 /** Validate a (locked) bed can take a new live assignment. */
@@ -293,7 +339,7 @@ async function loadTargetBed(tx: Tx, ctx: TenantContext, bedId: string) {
   const bed = await tx.bed.findFirst({ where: { id: bedId, organizationId: ctx.organizationId }, include: targetBedInclude });
   if (!bed) throw new NotFoundError("Bed");
   assertHostelAccess(ctx, bed.hostelId);
-  const label = placementLabel({ roomNumber: bed.room.roomNumber, bedNumber: bed.bedNumber });
+  const label = placementLabel({ roomNumber: bed.room.roomNumber, bedNumber: bed.bedNumber }, bed.hostel.rentalMode === "WHOLE_UNIT");
   if (bed.archivedAt || bed.room.archivedAt || bed.hostel.archivedAt) throw new BusinessRuleError(`${label} is no longer in service.`);
   if (bed.hostel.status !== "ACTIVE") throw new BusinessRuleError(`${bed.hostel.name} is not active. Activate the hostel before placing residents.`);
   if (bed.room.status === "MAINTENANCE" || bed.room.status === "INACTIVE") {
@@ -333,6 +379,10 @@ export async function checkIn(ctx: TenantContext, raw: CheckInInput) {
   const checkInDate = dateOnly(input.checkInDate);
   if (!input.reserveOnly) {
     assertNotFuture(ctx, checkInDate, "checkInDate", "Check-in can't be in the future. Use “Reserve only” to hold the bed.");
+  }
+  const lease = leaseColumns(input, checkInDate);
+  if (lease.leaseEndDate && lease.leaseEndDate < checkInDate) {
+    throw new ValidationError("Lease end must be on or after the move-in date.", { leaseEndDate: ["Must be on or after the move-in date"] });
   }
 
   const pre = await prisma.resident.findFirst({ where: { id: input.residentId, ...accessWhere(ctx) }, select: { status: true } });
@@ -379,6 +429,7 @@ export async function checkIn(ctx: TenantContext, raw: CheckInInput) {
           activeResidentId: resident.id,
           notes: input.notes ?? null,
           createdById: ctx.userId,
+          ...lease,
         },
       });
       await tx.bed.update({ where: { id: bed.id }, data: { status: input.reserveOnly ? "RESERVED" : "OCCUPIED" } });
@@ -392,7 +443,7 @@ export async function checkIn(ctx: TenantContext, raw: CheckInInput) {
       });
       await refreshRoomStatus(tx, bed.roomId);
 
-      const label = placementLabel({ roomNumber: bed.room.roomNumber, bedNumber: bed.bedNumber });
+      const label = placementLabel({ roomNumber: bed.room.roomNumber, bedNumber: bed.bedNumber }, bed.hostel.rentalMode === "WHOLE_UNIT");
       if (input.agreementFileId) {
         await attachAssignmentDocument(tx, ctx, resident.id, input.agreementFileId, "AGREEMENT", `Agreement — ${label} (${formatDate(checkInDate)})`);
       }
@@ -412,6 +463,9 @@ export async function checkIn(ctx: TenantContext, raw: CheckInInput) {
         }
         if (opts.includeDeposit && input.securityDeposit > 0) {
           items.push({ type: "SECURITY_DEPOSIT", description: chargeTypeLabels.SECURITY_DEPOSIT, quantity: 1, unitPrice: input.securityDeposit });
+        }
+        if (lease.advanceRent && lease.advanceRent > 0) {
+          items.push({ type: "OTHER", description: "Advance rent", quantity: 1, unitPrice: lease.advanceRent });
         }
         const admissionFee = toNumber(bed.hostel.admissionFee);
         if (opts.includeAdmissionFee && admissionFee > 0) {
@@ -488,7 +542,7 @@ async function loadReservation(tx: Tx, ctx: TenantContext, assignmentId: string)
     where: { id: assignmentId, ...accessWhere(ctx) },
     include: {
       resident: { select: { id: true, firstName: true, lastName: true, status: true } },
-      hostel: { select: { id: true, name: true } },
+      hostel: { select: { id: true, name: true, rentalMode: true } },
       room: { select: { roomNumber: true } },
       bed: { select: { bedNumber: true } },
     },
@@ -600,7 +654,7 @@ export async function transfer(ctx: TenantContext, raw: TransferInput) {
         where: { activeResidentId: input.residentId, ...accessWhere(ctx) },
         include: {
           resident: { select: { id: true, firstName: true, lastName: true } },
-          hostel: { select: { id: true, name: true } },
+          hostel: { select: { id: true, name: true, rentalMode: true } },
           room: { select: { id: true, roomNumber: true } },
           bed: { select: { id: true, bedNumber: true } },
         },
@@ -650,6 +704,14 @@ export async function transfer(ctx: TenantContext, raw: TransferInput) {
           previousAssignmentId: current.id,
           notes: input.notes ?? null,
           createdById: ctx.userId,
+          // The lease follows the tenant to the new unit/bed.
+          leaseEndDate: current.leaseEndDate,
+          noticePeriodDays: current.noticePeriodDays,
+          advanceRent: current.advanceRent,
+          rentIncrementPercent: current.rentIncrementPercent,
+          incrementIntervalMonths: current.incrementIntervalMonths,
+          nextIncrementDate: current.nextIncrementDate,
+          leaseTerms: current.leaseTerms,
         },
       });
       await tx.bed.update({ where: { id: target.id }, data: { status: "OCCUPIED" } });
@@ -715,7 +777,7 @@ export async function checkOut(ctx: TenantContext, raw: CheckOutInput) {
       where: { activeResidentId: input.residentId, ...accessWhere(ctx) },
       include: {
         resident: { select: { id: true, firstName: true, lastName: true, residentCode: true } },
-        hostel: { select: { id: true, name: true } },
+        hostel: { select: { id: true, name: true, rentalMode: true } },
         room: { select: { id: true, roomNumber: true } },
         bed: { select: { id: true, bedNumber: true } },
       },
@@ -850,6 +912,137 @@ export async function checkOut(ctx: TenantContext, raw: CheckOutInput) {
   });
 }
 
+// ─── Leases ─────────────────────────────────────────────────────────────────
+
+/** Audit action that holds a future-dated rent change; the daily job applies it. */
+export const SCHEDULED_RENT_CHANGE_ACTION = "lease.rent_change_scheduled";
+
+/**
+ * Renew (extend) a lease: new end date, optionally new terms and a new rent.
+ * A rent change effective today or earlier is applied immediately; a future
+ * one is recorded and applied by the daily job on its effective date.
+ */
+export async function renewLease(ctx: TenantContext, raw: RenewLeaseInput) {
+  requirePermission(ctx, "assignments.manage");
+  const input = parseInput(renewLeaseSchema, raw);
+  const now = today(ctx);
+  const leaseEndDate = dateOnly(input.leaseEndDate);
+  const effective = input.rentEffectiveDate ? dateOnly(input.rentEffectiveDate) : now;
+
+  const current = await prisma.residentAssignment.findFirst({
+    where: { id: input.assignmentId, ...accessWhere(ctx) },
+    include: {
+      resident: { select: { id: true, firstName: true, lastName: true } },
+      hostel: { select: { id: true, name: true, rentalMode: true } },
+      room: { select: { roomNumber: true } },
+      bed: { select: { bedNumber: true } },
+    },
+  });
+  if (!current) throw new NotFoundError("Lease");
+  if (current.status !== "ACTIVE") throw new BusinessRuleError("Only an active lease can be renewed.");
+  if (leaseEndDate <= current.checkInDate || leaseEndDate < now) {
+    throw new ValidationError("The new lease end must be in the future.", { leaseEndDate: ["Pick a date after today"] });
+  }
+  if (input.newMonthlyRent && effective < current.checkInDate) {
+    throw new ValidationError("The new rent can't start before the move-in date.", {
+      rentEffectiveDate: [`Must be on or after ${formatDate(current.checkInDate)}`],
+    });
+  }
+
+  const newRent = input.newMonthlyRent ?? null;
+  const applyNow = newRent !== null && effective <= now;
+  const scheduleLater = newRent !== null && effective > now;
+
+  const pct =
+    input.rentIncrementPercent !== undefined && input.rentIncrementPercent !== null
+      ? input.rentIncrementPercent
+      : current.rentIncrementPercent !== null
+        ? toNumber(current.rentIncrementPercent)
+        : null;
+  const interval = input.incrementIntervalMonths ?? current.incrementIntervalMonths ?? DEFAULT_INCREMENT_INTERVAL_MONTHS;
+  // A new rent restarts the increment cycle from its effective date.
+  const nextIncrementDate =
+    pct && pct > 0
+      ? newRent !== null
+        ? addMonthsUtc(effective, interval)
+        : (current.nextIncrementDate ?? addMonthsUtc(now, interval))
+      : null;
+
+  const before = {
+    leaseEndDate: current.leaseEndDate,
+    monthlyRent: current.monthlyRent,
+    noticePeriodDays: current.noticePeriodDays,
+    rentIncrementPercent: current.rentIncrementPercent,
+    incrementIntervalMonths: current.incrementIntervalMonths,
+    nextIncrementDate: current.nextIncrementDate,
+  };
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const row = await tx.residentAssignment.update({
+      where: { id: current.id },
+      data: {
+        leaseEndDate,
+        ...(applyNow ? { monthlyRent: newRent } : {}),
+        ...(input.noticePeriodDays !== undefined && input.noticePeriodDays !== null ? { noticePeriodDays: input.noticePeriodDays } : {}),
+        ...(input.leaseTerms !== undefined ? { leaseTerms: input.leaseTerms ?? null } : {}),
+        rentIncrementPercent: pct && pct > 0 ? round2(pct) : null,
+        incrementIntervalMonths: pct && pct > 0 ? interval : current.incrementIntervalMonths,
+        nextIncrementDate,
+      },
+    });
+    const after = {
+      leaseEndDate: row.leaseEndDate,
+      monthlyRent: row.monthlyRent,
+      noticePeriodDays: row.noticePeriodDays,
+      rentIncrementPercent: row.rentIncrementPercent,
+      incrementIntervalMonths: row.incrementIntervalMonths,
+      nextIncrementDate: row.nextIncrementDate,
+    };
+    await audit(
+      actorOf(ctx),
+      {
+        action: "lease.renewed",
+        entityType: "ResidentAssignment",
+        entityId: current.id,
+        before,
+        after,
+        metadata: {
+          residentId: current.residentId,
+          newMonthlyRent: newRent,
+          rentEffectiveDate: newRent !== null ? effective.toISOString().slice(0, 10) : null,
+          rentApplied: applyNow,
+        },
+      },
+      tx,
+    );
+    if (scheduleLater) {
+      await audit(
+        actorOf(ctx),
+        {
+          action: SCHEDULED_RENT_CHANGE_ACTION,
+          entityType: "ResidentAssignment",
+          entityId: current.id,
+          metadata: { newMonthlyRent: newRent, effectiveDate: effective.toISOString().slice(0, 10) },
+        },
+        tx,
+      );
+    }
+    return row;
+  });
+
+  const label = placementLabel(current);
+  const money = (n: number) => formatMoney(n, ctx.organization.currency);
+  await notifyResident(ctx.organizationId, current.residentId, {
+    type: "SYSTEM",
+    title: "Your lease has been renewed",
+    body:
+      `${current.hostel.name} · ${label}: now runs until ${formatDate(leaseEndDate)}.` +
+      (newRent !== null ? ` New rent ${money(newRent)} from ${formatDate(effective)}.` : ""),
+    link: "/portal",
+  });
+  return serialize(updated);
+}
+
 // ─── History ────────────────────────────────────────────────────────────────
 
 export type AssignmentListFilters = {
@@ -859,6 +1052,8 @@ export type AssignmentListFilters = {
   /** Stays overlapping [from, to] (YYYY-MM-DD). */
   from?: string;
   to?: string;
+  /** Active leases ending within the next 30 days. */
+  expiring?: boolean;
   page?: number;
   pageSize?: number;
 };
@@ -873,9 +1068,16 @@ function assignmentListWhere(ctx: TenantContext, filters: AssignmentListFilters)
   const from = validDate(filters.from);
   const to = validDate(filters.to);
   const terms = (filters.q ?? "").trim().split(/\s+/).filter(Boolean).slice(0, 5);
+  const now = today(ctx);
   return {
     ...scopedWhere(ctx, filters.hostelId),
     ...(filters.status ? { status: filters.status } : {}),
+    ...(filters.expiring
+      ? {
+          status: "ACTIVE" as const,
+          leaseEndDate: { gte: now, lte: new Date(now.getTime() + LEASE_EXPIRING_DAYS * 86400_000) },
+        }
+      : {}),
     ...(to ? { checkInDate: { lte: to } } : {}),
     ...(from ? { OR: [{ checkOutDate: null }, { checkOutDate: { gte: from } }] } : {}),
     ...(terms.length
@@ -895,7 +1097,7 @@ function assignmentListWhere(ctx: TenantContext, filters: AssignmentListFilters)
 
 const assignmentListInclude = {
   resident: { select: { id: true, firstName: true, lastName: true, residentCode: true, phone: true } },
-  hostel: { select: { id: true, name: true } },
+  hostel: { select: { id: true, name: true, rentalMode: true } },
   room: { select: { id: true, roomNumber: true } },
   bed: { select: { id: true, bedNumber: true } },
 } satisfies Prisma.ResidentAssignmentInclude;
@@ -934,11 +1136,14 @@ export async function getAssignmentStats(ctx: TenantContext) {
   const now = today(ctx);
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const scope = scopedWhere(ctx);
-  const [active, reserved, checkIns, checkOuts] = await Promise.all([
+  const [active, reserved, checkIns, checkOuts, expiringSoon] = await Promise.all([
     prisma.residentAssignment.count({ where: { ...scope, status: "ACTIVE" } }),
     prisma.residentAssignment.count({ where: { ...scope, status: "RESERVED" } }),
     prisma.residentAssignment.count({ where: { ...scope, previousAssignmentId: null, status: { in: ["ACTIVE", "TRANSFERRED", "COMPLETED"] }, checkInDate: { gte: monthStart } } }),
     prisma.residentAssignment.count({ where: { ...scope, status: "COMPLETED", checkOutDate: { gte: monthStart } } }),
+    prisma.residentAssignment.count({
+      where: { ...scope, status: "ACTIVE", leaseEndDate: { gte: now, lte: new Date(now.getTime() + LEASE_EXPIRING_DAYS * 86400_000) } },
+    }),
   ]);
-  return { active, reserved, checkInsThisMonth: checkIns, checkOutsThisMonth: checkOuts };
+  return { active, reserved, checkInsThisMonth: checkIns, checkOutsThisMonth: checkOuts, expiringSoon };
 }

@@ -24,7 +24,20 @@ export function defaultFloorName(n: number) {
 
 type Draft = { floorNumber: number; name: string };
 
-export function FloorsStep({ hostelId, hostelName, floors }: { hostelId: string; hostelName: string; floors: OnboardingFloor[] }) {
+export function FloorsStep({
+  hostelId,
+  hostelName,
+  floors,
+  propertyNoun = "hostel",
+  unitsNoun = "rooms",
+}: {
+  hostelId: string;
+  hostelName: string;
+  floors: OnboardingFloor[];
+  /** Lower-case vocabulary ("hostel"/"property", "rooms"/"units"). */
+  propertyNoun?: string;
+  unitsNoun?: string;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const existing = useMemo(() => new Set(floors.map((f) => f.floorNumber)), [floors]);
@@ -147,7 +160,7 @@ export function FloorsStep({ hostelId, hostelName, floors }: { hostelId: string;
         </ol>
       ) : (
         <p className="mt-5 rounded-lg border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
-          {floors.length ? "No new floors to add. Continue to create rooms." : "Choose how many floors your hostel has."}
+          {floors.length ? `No new floors to add. Continue to create ${unitsNoun}.` : `Choose how many floors your ${propertyNoun} has.`}
         </p>
       )}
       {error ? (
@@ -159,7 +172,7 @@ export function FloorsStep({ hostelId, hostelName, floors }: { hostelId: string;
       <StepFooter
         step={3}
         skipTo={floors.length ? (drafts.length ? 4 : undefined) : 6}
-        skipLabel={floors.length ? "Continue without adding" : "Skip rooms setup"}
+        skipLabel={floors.length ? "Continue without adding" : `Skip ${unitsNoun} setup`}
       >
         {drafts.length ? (
           <Button type="button" className="h-9 px-4" onClick={submit} disabled={pending}>

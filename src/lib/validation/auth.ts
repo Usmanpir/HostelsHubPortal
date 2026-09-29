@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { CURRENCIES, TIMEZONES } from "@/config/defaults";
-import { emailSchema, optionalEmail, optionalPhone, optionalText, passwordSchema, requiredText } from "./common";
+import { emailSchema, optionalEmail, optionalMoney, optionalPhone, optionalText, passwordSchema, requiredText } from "./common";
+import { WHOLE_UNIT_TYPES } from "./property";
 
 /**
  * Schemas for authentication, account, onboarding and marketing forms.
@@ -103,6 +104,9 @@ export type ChangePasswordInput = z.input<typeof changePasswordSchema>;
 
 const currencyCodes = CURRENCIES.map((c) => c.code) as [string, ...string[]];
 
+/** What the organization manages; drives vocabulary and which modules are on. */
+export const BUSINESS_TYPES = ["HOSTELS", "PROPERTY_MANAGEMENT", "REAL_ESTATE", "MIXED"] as const;
+
 export const onboardingOrganizationSchema = z.object({
   name: requiredText("Organization name", 120).min(2, "Organization name is too short"),
   phone: optionalPhone,
@@ -112,6 +116,9 @@ export const onboardingOrganizationSchema = z.object({
   currency: z.enum(currencyCodes, { message: "Select a currency" }),
   timezone: z.enum(TIMEZONES, { message: "Select a time zone" }),
   planKey: z.string().trim().min(1, "Choose a plan").max(40),
+  businessType: z.enum(BUSINESS_TYPES).default("HOSTELS"),
+  /** Only meaningful for PROPERTY_MANAGEMENT / MIXED. */
+  ownersEnabled: z.boolean().optional(),
 });
 export type OnboardingOrganizationInput = z.input<typeof onboardingOrganizationSchema>;
 
@@ -135,6 +142,24 @@ export const onboardingFloorsSchema = z
     });
   });
 export type OnboardingFloorsInput = z.input<typeof onboardingFloorsSchema>;
+
+const optionalCount = (max: number) =>
+  z.union([z.literal("").transform(() => undefined), z.coerce.number().int().min(0).max(max)]).optional().nullable();
+
+/** Bulk-create whole units (one tenant per unit, one bed each) on a floor. */
+export const onboardingUnitsSchema = z.object({
+  floorId: z.string().min(1, "Select a floor"),
+  prefix: z.string().trim().max(10).optional().default(""),
+  startNumber: z.coerce.number().int().min(0).max(99999),
+  count: z.coerce.number().int().min(1).max(100),
+  roomType: z.enum(WHOLE_UNIT_TYPES).default("APARTMENT"),
+  rent: optionalMoney,
+  bedrooms: optionalCount(50),
+  bathrooms: optionalCount(50),
+  areaSqft: optionalCount(10_000_000),
+  furnished: z.boolean().default(false),
+});
+export type OnboardingUnitsInput = z.input<typeof onboardingUnitsSchema>;
 
 /** Mirrors the invitation service schema so the client can validate before submit. */
 export const staffInviteSchema = z

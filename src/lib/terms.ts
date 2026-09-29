@@ -19,6 +19,9 @@ export type Terms = {
   checkOut: string;
   stay: string;
   stays: string;
+  /** Past tense, e.g. "Checked in" / "Moved in". */
+  checkedIn: string;
+  checkedOut: string;
 };
 
 const HOSTEL_TERMS: Terms = {
@@ -34,6 +37,8 @@ const HOSTEL_TERMS: Terms = {
   checkOut: "Check out",
   stay: "Stay",
   stays: "Stays",
+  checkedIn: "Checked in",
+  checkedOut: "Checked out",
 };
 
 const PROPERTY_TERMS: Terms = {
@@ -49,6 +54,8 @@ const PROPERTY_TERMS: Terms = {
   checkOut: "Move out",
   stay: "Lease",
   stays: "Leases",
+  checkedIn: "Moved in",
+  checkedOut: "Moved out",
 };
 
 export function termsFor(businessType: BusinessType | null | undefined): Terms {

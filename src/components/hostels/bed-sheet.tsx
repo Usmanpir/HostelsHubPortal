@@ -10,7 +10,7 @@ import { SubmitButton } from "@/components/forms/submit-button";
 import { useActionForm } from "@/components/forms/use-action-form";
 import { ConfirmAction } from "@/components/shared/confirm-action";
 import { EnumBadge } from "@/components/shared/status-badge";
-import { useCan, useFormatters } from "@/components/shared/org-context";
+import { useCan, useFormatters, useTerms } from "@/components/shared/org-context";
 import { bedStatusLabels, bedStatusTones } from "@/config/labels";
 import { bedUpdateSchema } from "@/lib/validation/property";
 import type { AssignmentStatus, BedStatus } from "@/generated/prisma/enums";
@@ -26,6 +26,8 @@ export type BedDetail = {
   roomNumber: string;
   roomRent: number | null;
   hostelName?: string;
+  /** Whole-unit rental: the bed represents the entire unit. */
+  wholeUnit?: boolean;
   assignment: {
     id: string;
     status: AssignmentStatus;
@@ -50,6 +52,8 @@ function BedSheetBody({ bed, close }: { bed: BedDetail; close: () => void }) {
   const router = useRouter();
   const can = useCan();
   const fmt = useFormatters();
+  const t = useTerms();
+  const whole = !!bed.wholeUnit;
   const occupied = !!bed.assignment;
   const manageable = can("rooms.manage");
 
@@ -62,7 +66,7 @@ function BedSheetBody({ bed, close }: { bed: BedDetail; close: () => void }) {
       status: bed.status,
     },
     action: (v) => updateBedAction(bed.id, v),
-    successMessage: "Bed updated",
+    successMessage: whole ? "Unit updated" : "Bed updated",
     onSuccess: () => {
       router.refresh();
       close();
@@ -77,7 +81,7 @@ function BedSheetBody({ bed, close }: { bed: BedDetail; close: () => void }) {
     <>
       <SheetHeader>
         <SheetTitle className="flex items-center gap-2">
-          Room {bed.roomNumber} · Bed {bed.bedNumber}
+          {whole ? `Unit ${bed.roomNumber}` : `${t.unit} ${bed.roomNumber} · Bed ${bed.bedNumber}`}
         </SheetTitle>
         <SheetDescription asChild>
           <div className="flex items-center gap-2">
@@ -105,7 +109,7 @@ function BedSheetBody({ bed, close }: { bed: BedDetail; close: () => void }) {
             </div>
             <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
               <div>
-                <dt className="text-xs text-muted-foreground">{bed.assignment.status === "RESERVED" ? "Reserved from" : "Checked in"}</dt>
+                <dt className="text-xs text-muted-foreground">{bed.assignment.status === "RESERVED" ? "Reserved from" : t.checkedIn}</dt>
                 <dd>{fmt.date(bed.assignment.checkInDate)}</dd>
               </div>
               <div>
@@ -133,7 +137,7 @@ function BedSheetBody({ bed, close }: { bed: BedDetail; close: () => void }) {
                   <Button asChild size="sm" variant="outline">
                     <Link href={`/residents/check-out?residentId=${bed.assignment.resident.id}`}>
                       <LogOut />
-                      Check out
+                      {t.checkOut}
                     </Link>
                   </Button>
                 </>
@@ -142,14 +146,14 @@ function BedSheetBody({ bed, close }: { bed: BedDetail; close: () => void }) {
           </div>
         ) : bed.status === "AVAILABLE" && can("assignments.manage") ? (
           <div className="rounded-xl border border-dashed p-4 text-center">
-            <p className="text-sm text-muted-foreground">This bed is free.</p>
+            <p className="text-sm text-muted-foreground">{whole ? "This unit is vacant." : "This bed is free."}</p>
             <p className="mb-3 text-sm">
               Rent: <span className="tabular font-medium">{fmt.money(bed.monthlyRent ?? bed.roomRent ?? 0)}</span>
             </p>
             <Button asChild size="sm">
               <Link href={`/residents/check-in?bedId=${bed.id}`}>
                 <LogIn />
-                Check in a resident
+                {`${t.checkIn} a ${t.resident.toLowerCase()}`}
               </Link>
             </Button>
           </div>
@@ -157,13 +161,13 @@ function BedSheetBody({ bed, close }: { bed: BedDetail; close: () => void }) {
 
         {manageable ? (
           <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
-            <h4 className="text-sm font-semibold">Bed settings</h4>
-            <TextField control={form.control} name="bedNumber" label="Bed number" required />
-            <SelectField control={form.control} name="status" label="Status" options={statusOptions} disabled={occupied} description={occupied ? "Status follows check-in / check-out." : undefined} />
-            <MoneyField control={form.control} name="monthlyRent" label="Monthly rent override" currency={fmt.currency} description="Leave empty to use the room or hostel rent." />
+            <h4 className="text-sm font-semibold">{whole ? "Unit availability" : "Bed settings"}</h4>
+            {whole ? null : <TextField control={form.control} name="bedNumber" label="Bed number" required />}
+            <SelectField control={form.control} name="status" label="Status" options={statusOptions} disabled={occupied} description={occupied ? `Status follows ${t.checkIn.toLowerCase()} / ${t.checkOut.toLowerCase()}.` : undefined} />
+            <MoneyField control={form.control} name="monthlyRent" label="Monthly rent override" currency={fmt.currency} description={`Leave empty to use the ${t.unit.toLowerCase()} or ${t.property.toLowerCase()} rent.`} />
             <TextareaField control={form.control} name="notes" label="Notes" rows={2} />
             <div className="flex items-center justify-between gap-2">
-              {!occupied ? (
+              {!occupied && !whole ? (
                 <ConfirmAction
                   trigger={
                     <Button type="button" variant="ghost" size="sm" className="text-destructive">

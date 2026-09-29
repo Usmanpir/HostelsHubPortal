@@ -11,7 +11,7 @@ import { SubmitButton } from "@/components/forms/submit-button";
 import { useActionForm } from "@/components/forms/use-action-form";
 import { EnumBadge } from "@/components/shared/status-badge";
 import { FormDialog } from "@/components/shared/form-dialog";
-import { useCan, useFormatters } from "@/components/shared/org-context";
+import { useCan, useFormatters, useTerms } from "@/components/shared/org-context";
 import { approvalStatusLabels, approvalStatusTones, residentRequestTypeLabels } from "@/config/labels";
 import { requestDecisionSchema } from "@/lib/validation/resident";
 import type { listResidentRequests } from "@/services/resident/request-service";
@@ -23,6 +23,7 @@ type Row = RequestsData["items"][number];
 export function RequestsTable({ data, filters, showHostel, empty }: { data: RequestsData; filters: FilterDef[]; showHostel: boolean; empty?: React.ReactNode }) {
   const fmt = useFormatters();
   const can = useCan();
+  const terms = useTerms();
   const canDecide = can("requests.manage");
   const canAssign = can("assignments.manage");
   const [deciding, setDeciding] = useState<{ row: Row; status: "APPROVED" | "REJECTED" } | null>(null);
@@ -71,19 +72,21 @@ export function RequestsTable({ data, filters, showHostel, empty }: { data: Requ
     },
     {
       id: "resident",
-      header: "Resident",
+      header: terms.resident,
       cell: (r) => (
         <Link href={`/residents/${r.resident.id}`} className="hover:text-primary">
           <span className="block whitespace-nowrap">
             {r.resident.firstName} {r.resident.lastName}
           </span>
           <span className="block text-xs text-muted-foreground">
-            {r.resident.assignments[0] ? `Room ${r.resident.assignments[0].room.roomNumber} · Bed ${r.resident.assignments[0].bed.bedNumber}` : r.resident.residentCode}
+            {r.resident.assignments[0]
+              ? `${terms.unit} ${r.resident.assignments[0].room.roomNumber}${terms.property === "Hostel" ? ` · Bed ${r.resident.assignments[0].bed.bedNumber}` : ""}`
+              : r.resident.residentCode}
           </span>
         </Link>
       ),
     },
-    ...(showHostel ? [{ id: "hostel", header: "Hostel", cell: (r: Row) => r.hostel.name }] : []),
+    ...(showHostel ? [{ id: "hostel", header: terms.property, cell: (r: Row) => r.hostel.name }] : []),
     { id: "created", header: "Submitted", cell: (r) => <span className="whitespace-nowrap">{fmt.date(r.createdAt)}</span> },
     {
       id: "status",

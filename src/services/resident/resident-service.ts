@@ -216,7 +216,7 @@ export async function getResident(ctx: TenantContext, id: string) {
       assignments: {
         orderBy: [{ checkInDate: "desc" }, { createdAt: "desc" }],
         include: {
-          hostel: { select: { id: true, name: true } },
+          hostel: { select: { id: true, name: true, rentalMode: true } },
           room: { select: { id: true, roomNumber: true, floor: { select: { name: true } } } },
           bed: { select: { id: true, bedNumber: true } },
           createdBy: { select: { name: true } },

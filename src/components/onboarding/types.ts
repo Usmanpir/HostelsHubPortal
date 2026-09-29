@@ -1,4 +1,4 @@
-import type { HostelGender, HostelType, RoomType } from "@/generated/prisma/enums";
+import type { HostelGender, HostelType, PropertyKind, RentalMode, RoomType } from "@/generated/prisma/enums";
 
 /** Plain, serializable shapes passed from the onboarding page to step components. */
 
@@ -18,6 +18,8 @@ export type OnboardingHostel = {
   code: string;
   type: HostelType;
   gender: HostelGender;
+  kind: PropertyKind;
+  rentalMode: RentalMode;
   city: string | null;
   address: string | null;
   country: string | null;

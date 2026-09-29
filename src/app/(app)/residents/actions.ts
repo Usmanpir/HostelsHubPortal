@@ -9,6 +9,7 @@ import type {
   CancelReservationInput,
   CheckInInput,
   CheckOutInput,
+  RenewLeaseInput,
   RequestDecisionInput,
   ResidentDocumentInput,
   ResidentInput,
@@ -30,6 +31,7 @@ import {
   checkOut,
   getCheckOutPreview,
   getHostelBedMap,
+  renewLease,
   searchAssignableResidents,
   transfer,
   type AssignableMode,
@@ -195,4 +197,13 @@ export async function decideRequestAction(id: string, input: RequestDecisionInpu
     revalidatePath(`/residents/${request.residentId}`);
     return { id: request.id, status: request.status };
   }, "Request updated");
+}
+
+export async function renewLeaseAction(input: RenewLeaseInput) {
+  return runAction(async () => {
+    const lease = await renewLease(await tenantOrThrow(), input);
+    revalidatePath(`/residents/${lease.residentId}`);
+    revalidatePath("/residents/assignments");
+    return { id: lease.id };
+  }, "Lease renewed");
 }

@@ -5,7 +5,7 @@ import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ConfirmAction } from "@/components/shared/confirm-action";
-import { useCan } from "@/components/shared/org-context";
+import { useCan, useTerms } from "@/components/shared/org-context";
 import { FloorDialog } from "./floor-dialog";
 import { archiveFloorAction } from "@/app/(app)/hostels/actions";
 
@@ -20,8 +20,17 @@ type FloorRow = {
   bedCount: number;
 };
 
-export function FloorsTable({ floors, hostels }: { floors: FloorRow[]; hostels: { id: string; name: string }[] }) {
+export function FloorsTable({
+  floors,
+  hostels,
+  showBeds = true,
+}: {
+  floors: FloorRow[];
+  hostels: { id: string; name: string }[];
+  showBeds?: boolean;
+}) {
   const can = useCan();
+  const t = useTerms();
   const manage = can("rooms.manage");
   return (
     <div className="overflow-x-auto rounded-xl border bg-card">
@@ -29,9 +38,9 @@ export function FloorsTable({ floors, hostels }: { floors: FloorRow[]; hostels: 
         <TableHeader>
           <TableRow className="bg-muted/40 hover:bg-muted/40">
             <TableHead>Floor</TableHead>
-            <TableHead>Hostel</TableHead>
-            <TableHead className="text-end">Rooms</TableHead>
-            <TableHead className="text-end">Beds</TableHead>
+            <TableHead>{t.property}</TableHead>
+            <TableHead className="text-end">{t.units}</TableHead>
+            {showBeds ? <TableHead className="text-end">Beds</TableHead> : null}
             {manage ? <TableHead className="w-24 text-end">Actions</TableHead> : null}
           </TableRow>
         </TableHeader>
@@ -57,7 +66,7 @@ export function FloorsTable({ floors, hostels }: { floors: FloorRow[]; hostels: 
                   {f._count.rooms}
                 </Link>
               </TableCell>
-              <TableCell className="text-end tabular">{f.bedCount}</TableCell>
+              {showBeds ? <TableCell className="text-end tabular">{f.bedCount}</TableCell> : null}
               {manage ? (
                 <TableCell className="text-end">
                   <div className="flex justify-end gap-1">

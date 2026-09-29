@@ -15,7 +15,7 @@ function limit(value: number | null, singular: string, plural: string) {
   return `Up to ${value.toLocaleString("en")} ${value === 1 ? singular : plural}`;
 }
 
-/** Human-readable plan limits, e.g. "Up to 3 hostels". */
+/** Human-readable plan limits, e.g. "Up to 3 properties". */
 export function planLimitLines(limits: PlanLimits): string[] {
   const storage =
     limits.maxStorageMb === null
@@ -24,7 +24,7 @@ export function planLimitLines(limits: PlanLimits): string[] {
         ? `${Math.round(limits.maxStorageMb / 1024)} GB file storage`
         : `${limits.maxStorageMb} MB file storage`;
   return [
-    limit(limits.maxHostels, "hostel", "hostels"),
+    limit(limits.maxHostels, "property", "properties"),
     limit(limits.maxBeds, "bed", "beds"),
     limit(limits.maxResidents, "resident", "residents"),
     limit(limits.maxStaff, "staff member", "staff members"),

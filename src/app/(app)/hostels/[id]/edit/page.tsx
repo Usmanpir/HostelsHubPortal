@@ -4,17 +4,24 @@ import { requireTenantPage } from "@/lib/tenant/server";
 import { loadOr404 } from "@/lib/page-helpers";
 import { getHostel } from "@/services/hostel/hostel-service";
 import { listStaffOptions } from "@/services/hostel/staff-options";
+import { listOwnerOptions } from "@/services/hostel/owner-options";
+import { termsFor } from "@/lib/terms";
 
 export default async function EditHostelPage({ params }: PageProps<"/hostels/[id]/edit">) {
   const ctx = await requireTenantPage("hostels.manage");
   const { id } = await params;
-  const [hostel, managers] = await Promise.all([loadOr404(getHostel(ctx, id)), listStaffOptions(ctx)]);
+  const t = termsFor(ctx.organization.businessType);
+  const [hostel, managers, owners] = await Promise.all([
+    loadOr404(getHostel(ctx, id)),
+    listStaffOptions(ctx),
+    listOwnerOptions(ctx),
+  ]);
   return (
     <>
       <PageHeader
         title={`Edit ${hostel.name}`}
         breadcrumbs={[
-          { label: "Hostels", href: "/hostels" },
+          { label: t.properties, href: "/hostels" },
           { label: hostel.name, href: `/hostels/${hostel.id}` },
           { label: "Edit" },
         ]}
@@ -22,7 +29,12 @@ export default async function EditHostelPage({ params }: PageProps<"/hostels/[id
       <HostelForm
         hostelId={hostel.id}
         managers={managers}
+        owners={owners}
         initial={{
+          kind: hostel.kind,
+          rentalMode: hostel.rentalMode,
+          ownerId: hostel.ownerId ?? "",
+          managementFeePercent: hostel.managementFeePercent ?? undefined,
           name: hostel.name,
           code: hostel.code,
           type: hostel.type,

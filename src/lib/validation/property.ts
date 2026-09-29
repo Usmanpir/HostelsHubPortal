@@ -90,6 +90,10 @@ export const bulkRoomsSchema = z.object({
   roomType: z.enum(roomTypes).default("SHARED"),
   capacity: z.coerce.number().int().min(1).max(50),
   rent: optionalMoney,
+  bedrooms: z.union([z.literal("").transform(() => undefined), z.coerce.number().int().min(0).max(50)]).optional().nullable(),
+  bathrooms: z.union([z.literal("").transform(() => undefined), z.coerce.number().int().min(0).max(50)]).optional().nullable(),
+  areaSqft: z.union([z.literal("").transform(() => undefined), z.coerce.number().int().min(0).max(10_000_000)]).optional().nullable(),
+  furnished: z.boolean().default(false),
 });
 export type BulkRoomsInput = z.input<typeof bulkRoomsSchema>;
 
@@ -111,6 +115,8 @@ export type BedUpdateInput = z.input<typeof bedUpdateSchema>;
 
 export const HOSTEL_TYPES = hostelTypes;
 export const ROOM_TYPES = roomTypes;
+/** Room types for shared/by-bed rooms (rental mode BY_BED). */
+export const BED_ROOM_TYPES = ["SINGLE", "DOUBLE", "TRIPLE", "FOUR_BED", "SHARED", "CUSTOM"] as const;
 export const PROPERTY_KINDS = propertyKinds;
 export const RENTAL_MODES = rentalModes;
 export const ROOM_STATUSES = roomStatuses;

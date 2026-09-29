@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DataTable, type Column, type FilterDef } from "@/components/data-table/data-table";
 import { EnumBadge } from "@/components/shared/status-badge";
-import { useFormatters } from "@/components/shared/org-context";
+import { Badge } from "@/components/ui/badge";
+import { useFormatters, useTerms } from "@/components/shared/org-context";
 import { useUrlState } from "@/hooks/use-url-state";
 import { assignmentStatusLabels, assignmentStatusTones } from "@/config/labels";
 import type { listAssignments } from "@/services/resident/assignment-service";
@@ -18,20 +19,32 @@ export function AssignmentsTable({
   data,
   filters,
   showHostel,
+  showLease = false,
+  today,
   toolbar,
   empty,
 }: {
   data: AssignmentsData;
   filters: FilterDef[];
   showHostel: boolean;
+  /** Show lease end / expiring columns (property orgs, or when leases are in use). */
+  showLease?: boolean;
+  /** Org-local "YYYY-MM-DD", for days-to-expiry. */
+  today?: string;
   toolbar?: React.ReactNode;
   empty?: React.ReactNode;
 }) {
   const fmt = useFormatters();
+  const t = useTerms();
+  const whole = (a: Row) => a.hostel.rentalMode === "WHOLE_UNIT";
+  const where = (a: Row) => (whole(a) ? `Unit ${a.room.roomNumber}` : `${t.unit} ${a.room.roomNumber} · Bed ${a.bed.bedNumber}`);
+  const todayMs = today ? Date.parse(`${today}T00:00:00Z`) : null;
+  const daysLeft = (a: Row) =>
+    a.leaseEndDate && todayMs !== null ? Math.round((new Date(a.leaseEndDate).getTime() - todayMs) / 86400_000) : null;
   const columns: Column<Row>[] = [
     {
       id: "resident",
-      header: "Resident",
+      header: t.resident,
       hideable: false,
       cell: (a) => (
         <Link href={`/residents/${a.resident.id}`} className="min-w-0 hover:text-primary">
@@ -42,20 +55,42 @@ export function AssignmentsTable({
         </Link>
       ),
     },
-    ...(showHostel ? [{ id: "hostel", header: "Hostel", cell: (a: Row) => a.hostel.name }] : []),
+    ...(showHostel ? [{ id: "hostel", header: t.property, cell: (a: Row) => a.hostel.name }] : []),
     {
       id: "bed",
-      header: "Room / bed",
-      cell: (a) => (
-        <span className="whitespace-nowrap">
-          Room {a.room.roomNumber} · Bed {a.bed.bedNumber}
-        </span>
-      ),
+      header: t.property === "Hostel" ? "Room / bed" : t.unit,
+      cell: (a) => <span className="whitespace-nowrap">{where(a)}</span>,
     },
-    { id: "in", header: "Check-in", cell: (a) => <span className="tabular whitespace-nowrap">{fmt.date(a.checkInDate)}</span> },
+    { id: "in", header: t.property === "Hostel" ? "Check-in" : "Move-in", cell: (a) => <span className="tabular whitespace-nowrap">{fmt.date(a.checkInDate)}</span> },
+    ...(showLease
+      ? [
+          {
+            id: "leaseEnd",
+            header: "Lease end",
+            cell: (a: Row) => {
+              if (!a.leaseEndDate) return <span className="text-muted-foreground">—</span>;
+              const left = a.status === "ACTIVE" ? daysLeft(a) : null;
+              return (
+                <span className="flex flex-wrap items-center gap-1.5 whitespace-nowrap">
+                  <span className="tabular">{fmt.date(a.leaseEndDate)}</span>
+                  {left !== null && left < 0 ? (
+                    <Badge variant="outline" className="border-danger/30 bg-danger-soft text-danger">
+                      Ended
+                    </Badge>
+                  ) : left !== null && left <= 30 ? (
+                    <Badge variant="outline" className="border-warning/30 bg-warning-soft text-warning">
+                      Expiring soon
+                    </Badge>
+                  ) : null}
+                </span>
+              );
+            },
+          } satisfies Column<Row>,
+        ]
+      : []),
     {
       id: "out",
-      header: "Check-out",
+      header: t.property === "Hostel" ? "Check-out" : "Move-out",
       cell: (a) =>
         a.checkOutDate ? (
           <span className="tabular whitespace-nowrap">{fmt.date(a.checkOutDate)}</span>
@@ -93,7 +128,7 @@ export function AssignmentsTable({
       pageCount={data.pageCount}
       pageSize={data.pageSize}
       rowHref={(a) => `/residents/${a.resident.id}`}
-      searchPlaceholder="Search resident, code or room"
+      searchPlaceholder={`Search ${t.resident.toLowerCase()}, code or ${t.unit.toLowerCase()}`}
       filters={filters}
       toolbar={
         <>
@@ -111,7 +146,8 @@ export function AssignmentsTable({
                 {a.resident.firstName} {a.resident.lastName}
               </p>
               <p className="text-xs text-muted-foreground">
-                {showHostel ? `${a.hostel.name} · ` : ""}Room {a.room.roomNumber} · Bed {a.bed.bedNumber}
+                {showHostel ? `${a.hostel.name} · ` : ""}
+                {where(a)}
               </p>
             </div>
             <EnumBadge value={a.status} labels={assignmentStatusLabels} tones={assignmentStatusTones} />
@@ -120,6 +156,13 @@ export function AssignmentsTable({
             <span className="tabular">{fmt.date(a.checkInDate)}</span> →{" "}
             <span className="tabular">{a.checkOutDate ? fmt.date(a.checkOutDate) : a.status === "ACTIVE" ? "Present" : "—"}</span> ·{" "}
             <span className="tabular">{fmt.money(a.monthlyRent)}/mo</span>
+            {showLease && a.leaseEndDate ? (
+              <>
+                {" · lease to "}
+                <span className="tabular">{fmt.date(a.leaseEndDate)}</span>
+                {a.status === "ACTIVE" && (daysLeft(a) ?? 99) <= 30 ? <span className="text-warning"> (expiring)</span> : null}
+              </>
+            ) : null}
           </p>
         </div>
       )}

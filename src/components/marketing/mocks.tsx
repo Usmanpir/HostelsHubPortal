@@ -2,17 +2,28 @@ import {
   BarChart3,
   BedDouble,
   Bell,
+  BellRing,
   Building2,
   CalendarCheck,
+  CalendarClock,
   ChevronDown,
   CreditCard,
+  Eye,
+  FilePen,
   FileText,
+  Globe,
+  HandCoins,
+  Handshake,
   Home,
   LayoutDashboard,
   LogIn,
+  MapPin,
   Megaphone,
+  Phone,
   Search,
   Settings,
+  Store,
+  TrendingUp,
   UserRound,
   Users,
   Wrench,
@@ -160,30 +171,30 @@ export function DashboardMock() {
 
 export function HostelsMock() {
   const rows = [
-    { name: "City Centre", w: "w-[88%]", tone: "bg-primary" },
-    { name: "Campus Road", w: "w-[72%]", tone: "bg-primary" },
-    { name: "Lakeside", w: "w-[54%]", tone: "bg-warning" },
-    { name: "Station View", w: "w-[93%]", tone: "bg-success" },
+    { name: "Hostel", icon: BedDouble, w: "w-[88%]", tone: "bg-primary" },
+    { name: "Apartment building", icon: Building2, w: "w-[72%]", tone: "bg-primary" },
+    { name: "House", icon: Home, w: "w-[54%]", tone: "bg-warning" },
+    { name: "Shops & offices", icon: Store, w: "w-[93%]", tone: "bg-success" },
   ];
   return (
     <Frame className="p-5">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold">Hostels</p>
+        <p className="text-sm font-semibold">Properties</p>
         <span className="inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px]">
-          <Building2 className="size-3 text-primary" /> Switch hostel <ChevronDown className="size-3" />
+          <Building2 className="size-3 text-primary" /> Switch property <ChevronDown className="size-3" />
         </span>
       </div>
       <ul className="mt-4 grid gap-3">
-        {rows.map((r) => (
-          <li key={r.name} className="rounded-xl border bg-background p-3">
+        {rows.map(({ name, icon: Icon, w, tone }) => (
+          <li key={name} className="rounded-xl border bg-background p-3">
             <div className="flex items-center gap-3">
               <span className="flex size-8 items-center justify-center rounded-lg bg-accent text-accent-foreground">
-                <Home className="size-4" />
+                <Icon className="size-4" />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium">{r.name}</p>
+                <p className="text-sm font-medium">{name}</p>
                 <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
-                  <div className={cn("h-full rounded-full", r.w, r.tone)} />
+                  <div className={cn("h-full rounded-full", w, tone)} />
                 </div>
               </div>
             </div>
@@ -381,5 +392,175 @@ export function PortalMock() {
         </div>
       </div>
     </div>
+  );
+}
+
+export function LeaseMock() {
+  return (
+    <Frame className="p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="flex size-10 items-center justify-center rounded-xl bg-accent text-accent-foreground">
+            <FilePen className="size-5" />
+          </span>
+          <div>
+            <p className="text-sm font-semibold">Lease</p>
+            <Bar className="mt-2 w-24 bg-muted/70" />
+          </div>
+        </div>
+        <span className="rounded-full bg-success-soft px-2 py-0.5 text-[11px] font-medium text-success">Active</span>
+      </div>
+      <dl className="mt-5 grid grid-cols-2 gap-3 text-xs">
+        {["Unit", "Tenant", "Monthly rent", "Advance rent", "Notice period", "Annual increment"].map((label) => (
+          <div key={label} className="rounded-lg border bg-background p-2.5">
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="mt-2">
+              <Bar className="w-2/3" />
+            </dd>
+          </div>
+        ))}
+      </dl>
+      <div className="mt-4 rounded-lg border bg-background p-3">
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+          <span>Start</span>
+          <span className="inline-flex items-center gap-1 font-medium text-warning">
+            <CalendarClock className="size-3" /> Expiry reminder
+          </span>
+          <span>End</span>
+        </div>
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
+          <div className="h-full w-3/4 rounded-full bg-linear-to-r from-primary to-warning" />
+        </div>
+      </div>
+    </Frame>
+  );
+}
+
+export function OwnerStatementMock() {
+  return (
+    <Frame className="p-5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <HandCoins className="size-4 text-primary" />
+          <p className="text-sm font-semibold">Owner statement</p>
+        </div>
+        <span className="text-[11px] text-muted-foreground">This month</span>
+      </div>
+      <ul className="mt-5 grid gap-2.5 text-xs">
+        {[
+          { label: "Rent collected", w: "w-20", tone: "bg-success/60" },
+          { label: "Expenses", w: "w-10", tone: "bg-danger/45" },
+          { label: "Management fee", w: "w-8", tone: "bg-warning/60" },
+        ].map((r) => (
+          <li key={r.label} className="flex items-center justify-between gap-3 border-b pb-2.5">
+            <span className="text-muted-foreground">{r.label}</span>
+            <span className={cn("block h-1.5 rounded-full", r.w, r.tone)} />
+          </li>
+        ))}
+        <li className="flex items-center justify-between gap-3 font-medium">
+          <span>Net payout</span>
+          <span className="block h-2 w-16 rounded-full bg-primary/80" />
+        </li>
+      </ul>
+      <div className="mt-5 grid gap-2">
+        {[0, 1].map((i) => (
+          <div key={i} className="flex items-center gap-2 rounded-lg border bg-background p-2">
+            <span className="flex size-6 items-center justify-center rounded-md bg-accent text-accent-foreground">
+              <UserRound className="size-3" />
+            </span>
+            <span className="flex flex-1 flex-col gap-1">
+              <Bar className="h-1.5 w-2/3" />
+              <Bar className="h-1.5 w-1/3 bg-muted/70" />
+            </span>
+            <span
+              className={cn(
+                "rounded-full px-2 py-0.5 text-[10px] font-medium",
+                i === 0 ? "bg-success-soft text-success" : "bg-warning-soft text-warning",
+              )}
+            >
+              {i === 0 ? "Paid" : "Pending"}
+            </span>
+          </div>
+        ))}
+      </div>
+    </Frame>
+  );
+}
+
+export function PipelineMock() {
+  const columns = [
+    { title: "Leads", icon: Phone, tone: "bg-info-soft text-info", cards: 3 },
+    { title: "Viewings", icon: Eye, tone: "bg-violet-soft text-violet", cards: 2 },
+    { title: "Deals", icon: Handshake, tone: "bg-success-soft text-success", cards: 1 },
+  ];
+  return (
+    <Frame className="p-5">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold">Pipeline</p>
+        <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+          <TrendingUp className="size-3" /> Sales & rentals
+        </span>
+      </div>
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        {columns.map(({ title, icon: Icon, tone, cards }) => (
+          <div key={title} className="rounded-xl border bg-muted/30 p-2">
+            <div className="flex items-center gap-1.5">
+              <span className={cn("flex size-5 items-center justify-center rounded-md", tone)}>
+                <Icon className="size-3" />
+              </span>
+              <span className="text-[11px] font-medium">{title}</span>
+            </div>
+            <div className="mt-2 grid gap-1.5">
+              {Array.from({ length: cards }, (_, i) => (
+                <div key={i} className="rounded-lg border bg-background p-2">
+                  <Bar className="h-1.5 w-4/5" />
+                  <Bar className="mt-1.5 h-1.5 w-1/2 bg-muted/70" />
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 flex items-center gap-2 rounded-lg border bg-background p-2 text-[11px] text-muted-foreground">
+        <CalendarCheck className="size-3 text-primary" /> Viewing scheduled
+        <Bell className="ms-auto size-3" />
+      </div>
+    </Frame>
+  );
+}
+
+export function ListingsMock() {
+  return (
+    <Frame>
+      <div className="flex items-center gap-2 border-b bg-muted/40 px-4 py-2.5">
+        <Globe className="size-3 text-muted-foreground" />
+        <span className="flex h-6 flex-1 items-center rounded-md border bg-background px-2 text-[11px] text-muted-foreground">
+          /l/your-company
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-2.5 p-4">
+        {[
+          { tag: "For rent", tone: "bg-info-soft text-info" },
+          { tag: "For sale", tone: "bg-success-soft text-success" },
+          { tag: "For rent", tone: "bg-info-soft text-info" },
+          { tag: "Beds available", tone: "bg-violet-soft text-violet" },
+        ].map(({ tag, tone }, i) => (
+          <div key={i} className="overflow-hidden rounded-xl border bg-background">
+            <div className="h-14 bg-linear-to-br from-primary/20 to-violet/15" />
+            <div className="p-2">
+              <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-medium", tone)}>{tag}</span>
+              <Bar className="mt-2 h-1.5 w-4/5" />
+              <span className="mt-1.5 flex items-center gap-1 text-[9px] text-muted-foreground">
+                <MapPin className="size-2.5" />
+                <Bar className="h-1 w-10 bg-muted/70" />
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center gap-2 border-t px-4 py-2.5 text-[11px] text-muted-foreground">
+        <BellRing className="size-3 text-primary" /> Enquiries arrive as leads
+      </div>
+    </Frame>
   );
 }

@@ -7,6 +7,7 @@ import { runAction } from "@/lib/actions";
 import { HOSTEL_COOKIE, tenantOrThrow } from "@/lib/tenant/server";
 import type {
   BrandingInput,
+  BusinessModulesInput,
   ChangePlanInput,
   DuplicateRoleInput,
   InviteMemberInput,
@@ -21,6 +22,7 @@ import type {
 import {
   signOutAllSessions,
   updateBranding,
+  updateBusinessModules,
   updateInvoiceSettings,
   updateNotificationSettings,
   updateOrganizationProfile,
@@ -50,6 +52,15 @@ export async function updateOrganizationProfileAction(input: OrganizationSetting
     revalidatePath("/", "layout");
     return result;
   }, "Organization profile saved");
+}
+
+export async function updateBusinessModulesAction(input: BusinessModulesInput) {
+  return runAction(async () => {
+    const result = await updateBusinessModules(await tenantOrThrow(), input);
+    // Navigation and terminology throughout the app depend on these.
+    revalidatePath("/", "layout");
+    return result;
+  }, "Business settings saved");
 }
 
 export async function updateBrandingAction(input: BrandingInput) {

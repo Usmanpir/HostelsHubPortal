@@ -2,6 +2,7 @@ import type { Permission } from "@/lib/permissions/catalog";
 
 export type SettingsSectionKey =
   | "organization"
+  | "business"
   | "branding"
   | "invoices"
   | "notifications"
@@ -28,6 +29,13 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     href: "/settings/organization",
     label: "Organization",
     description: "Name, contact details, logo, currency and time zone.",
+    permission: "settings.organization",
+  },
+  {
+    key: "business",
+    href: "/settings/business",
+    label: "Business & modules",
+    description: "Business type, owners, sales & leasing and public listings.",
     permission: "settings.organization",
   },
   {

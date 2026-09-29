@@ -3,16 +3,21 @@ import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { RequestsTable } from "@/components/residents/requests-table";
-import { requireTenantPage } from "@/lib/tenant/server";
+import { getTenantContext, requireTenantPage } from "@/lib/tenant/server";
+import { termsFor } from "@/lib/terms";
 import { listHostelOptions } from "@/services/hostel/hostel-service";
 import { listResidentRequests } from "@/services/resident/request-service";
 import { parseRequestFilters } from "@/services/resident/filters";
 import { approvalStatusLabels, optionsFrom, residentRequestTypeLabels } from "@/config/labels";
 
-export const metadata = { title: "Resident requests" };
+export async function generateMetadata() {
+  const ctx = await getTenantContext();
+  return { title: `${termsFor(ctx?.organization.businessType).resident} requests` };
+}
 
 export default async function ResidentRequestsPage({ searchParams }: PageProps<"/residents/requests">) {
   const ctx = await requireTenantPage("requests.view");
+  const t = termsFor(ctx.organization.businessType);
   const params = await searchParams;
   const filters = parseRequestFilters(params);
   const [data, hostels] = await Promise.all([listResidentRequests(ctx, filters), listHostelOptions(ctx)]);
@@ -24,12 +29,12 @@ export default async function ResidentRequestsPage({ searchParams }: PageProps<"
       <PageHeader
         title={
           <span className="flex items-center gap-3">
-            Resident requests
+            {t.resident} requests
             {data.pending > 0 ? <StatusBadge tone="warning">{data.pending} pending</StatusBadge> : null}
           </span>
         }
-        description="Room changes, leave and other requests submitted from the resident portal."
-        breadcrumbs={[{ label: "Residents", href: "/residents" }, { label: "Requests" }]}
+        description={`${t.unit} changes, leave and other requests submitted from the ${t.resident.toLowerCase()} portal.`}
+        breadcrumbs={[{ label: t.residents, href: "/residents" }, { label: "Requests" }]}
       />
       <RequestsTable
         data={data}
@@ -37,7 +42,7 @@ export default async function ResidentRequestsPage({ searchParams }: PageProps<"
         filters={[
           { key: "status", label: "Status", options: optionsFrom(approvalStatusLabels) },
           { key: "type", label: "Type", options: optionsFrom(residentRequestTypeLabels) },
-          ...(showHostel ? [{ key: "hostelId", label: "Hostel", options: hostels.map((h) => ({ value: h.id, label: h.name })) }] : []),
+          ...(showHostel ? [{ key: "hostelId", label: t.property, options: hostels.map((h) => ({ value: h.id, label: h.name })) }] : []),
         ]}
         empty={
           <EmptyState

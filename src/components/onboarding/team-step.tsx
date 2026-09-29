@@ -25,7 +25,10 @@ export function TeamStep({
   roles,
   hostels,
   pendingInvites,
+  propertiesLabel = "Hostels",
 }: {
+  /** Plural noun for properties ("Hostels" / "Properties"). */
+  propertiesLabel?: string;
   roles: Role[];
   hostels: { id: string; name: string }[];
   pendingInvites: Pending[];
@@ -79,7 +82,11 @@ export function TeamStep({
           />
         </div>
         {role?.description ? <p className="-mt-2 text-xs text-muted-foreground">{role.description}</p> : null}
-        <SwitchField control={c} name="allHostels" label="Access to all hostels" description="Includes hostels you add later." />
+        <SwitchField
+          control={c}
+          name="allHostels" label={`Access to all ${propertiesLabel.toLowerCase()}`}
+          description={`Includes ${propertiesLabel.toLowerCase()} you add later.`}
+        />
         {!allHostels ? (
           <Controller
             control={c}
@@ -88,7 +95,7 @@ export function TeamStep({
               const value = (field.value as string[] | undefined) ?? [];
               return (
                 <FieldSet>
-                  <FieldLegend variant="label">Hostels they can access</FieldLegend>
+                  <FieldLegend variant="label">{propertiesLabel} they can access</FieldLegend>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {hostels.map((h) => {
                       const checked = value.includes(h.id);

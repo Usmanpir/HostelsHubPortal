@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { formatDate } from "@/lib/format";
 import { completeOnboardingAction } from "@/app/onboarding/actions";
+import type { WizardVocabulary } from "./vocabulary";
 
 type Summary = {
   organizationName: string;
@@ -27,7 +28,17 @@ const NEXT_STEPS = [
   { href: "/settings", label: "Review settings", description: "Invoice numbering, tax, branding and notifications." },
 ];
 
-export function CompleteStep({ summary }: { summary: Summary }) {
+function nextStepsFor(vocab: WizardVocabulary | undefined) {
+  if (!vocab || (vocab.isHostelOrg && !vocab.wholeUnit)) return NEXT_STEPS;
+  const tenant = vocab.resident.toLowerCase();
+  return [
+    { href: "/residents", label: `Add your first ${tenant}`, description: `Move ${vocab.residents.toLowerCase()} in and start billing rent.` },
+    { href: "/hostels/map", label: `Open the ${vocab.unit.toLowerCase()} map`, description: "See occupancy across every floor at a glance." },
+    NEXT_STEPS[2]!,
+  ];
+}
+
+export function CompleteStep({ summary, vocab }: { summary: Summary; vocab?: WizardVocabulary }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -48,12 +59,13 @@ export function CompleteStep({ summary }: { summary: Summary }) {
     });
 
   const stats = [
-    { icon: Building2, label: "Hostel", value: summary.hostelName },
+    { icon: Building2, label: vocab?.property ?? "Hostel", value: summary.hostelName },
     { icon: Layers, label: "Floors", value: summary.floors },
-    { icon: DoorOpen, label: "Rooms", value: summary.rooms },
-    { icon: BedDouble, label: "Beds", value: summary.beds },
+    { icon: DoorOpen, label: vocab?.units ?? "Rooms", value: summary.rooms },
+    ...(vocab?.wholeUnit ? [] : [{ icon: BedDouble, label: "Beds", value: summary.beds }]),
     { icon: Users, label: "Invitations", value: summary.invitations },
   ];
+  const nextSteps = nextStepsFor(vocab);
 
   return (
     <section className="relative overflow-hidden rounded-2xl border bg-card shadow-sm">
@@ -92,7 +104,7 @@ export function CompleteStep({ summary }: { summary: Summary }) {
       <div className="relative border-t px-5 py-6 sm:px-10">
         <h2 className="text-sm font-medium">What&apos;s next</h2>
         <ul className="mt-3 grid gap-2 sm:grid-cols-3">
-          {NEXT_STEPS.map((s) => (
+          {nextSteps.map((s) => (
             <li key={s.href}>
               <button
                 type="button"

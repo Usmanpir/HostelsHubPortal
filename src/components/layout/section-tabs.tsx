@@ -13,11 +13,24 @@ import { cn } from "@/lib/utils";
  * Each tab is a real route; tabs the member can't open are hidden, and the bar
  * disappears when only one tab is left.
  */
-export function SectionTabs({ group, className }: { group: TabGroupKey; className?: string }) {
+export function SectionTabs({
+  group,
+  className,
+  hide,
+}: {
+  group: TabGroupKey;
+  className?: string;
+  /** Tab hrefs to leave out (e.g. Beds for orgs that only lease whole units). */
+  hide?: string[];
+}) {
   const pathname = usePathname();
   const { permissions, locale, businessType } = useOrg();
   const labels = getMessages(locale, businessType).nav;
-  const tabs = useMemo(() => allowedTabs(group, new Set(permissions)), [group, permissions]);
+  const hideKey = (hide ?? []).join("|");
+  const tabs = useMemo(
+    () => allowedTabs(group, new Set(permissions)).filter((t) => !hideKey.split("|").includes(t.href)),
+    [group, permissions, hideKey],
+  );
   if (tabs.length < 2) return null;
 
   return (

@@ -16,6 +16,7 @@ import { genderLabels, optionsFrom, residentStatusLabels } from "@/config/labels
 import { EDITABLE_RESIDENT_STATUSES, residentSchema, type ResidentInput, type ResidentValues } from "@/lib/validation/resident";
 import { createResidentAction, updateResidentAction } from "@/app/(app)/residents/actions";
 import { ResidentAvatar } from "./resident-avatar";
+import { useTerms } from "@/components/shared/org-context";
 
 /** Optional profile fields shown under "More details" (opened automatically on errors). */
 const MORE_FIELDS = [
@@ -58,6 +59,7 @@ export function ResidentForm({
   returnTo?: { kind: "check-in"; bedId?: string };
 }) {
   const router = useRouter();
+  const terms = useTerms();
   const { form, onSubmit, pending } = useActionForm({
     schema: residentSchema,
     defaultValues: initial,
@@ -89,7 +91,7 @@ export function ResidentForm({
           <SelectField
             control={c}
             name="hostelId"
-            label="Hostel"
+            label={terms.property}
             required
             disabled={lockHostel}
             options={hostels.map((h) => ({ value: h.id, label: h.name }))}
@@ -151,7 +153,11 @@ export function ResidentForm({
           Cancel
         </Button>
         <SubmitButton pending={pending} className="flex-1 sm:flex-none">
-          {residentId ? "Save changes" : returnTo?.kind === "check-in" ? "Save & continue check-in" : "Add resident"}
+          {residentId
+            ? "Save changes"
+            : returnTo?.kind === "check-in"
+              ? `Save & continue ${terms.checkIn.toLowerCase()}`
+              : `Add ${terms.resident.toLowerCase()}`}
         </SubmitButton>
       </div>
     </form>

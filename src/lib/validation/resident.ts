@@ -81,7 +81,24 @@ export type ResidentDocumentInput = z.input<typeof residentDocumentSchema>;
 
 // ─── Assignments ────────────────────────────────────────────────────────────
 
-export const checkInSchema = z.object({
+const optionalInt = (min: number, max: number) =>
+  z.union([z.literal("").transform(() => undefined), z.coerce.number().int().min(min).max(max)]).optional().nullable();
+
+/** Lease terms (whole-unit rentals; optional for beds). Empty strings from forms mean "not set". */
+export const leaseFieldsSchema = z.object({
+  leaseEndDate: optionalDate,
+  noticePeriodDays: optionalInt(0, 365),
+  advanceRent: z.union([z.literal("").transform(() => undefined), moneySchema]).optional().nullable(),
+  rentIncrementPercent: z
+    .union([z.literal("").transform(() => undefined), z.coerce.number().min(0, "Must be 0–100").max(100, "Must be 0–100")])
+    .optional()
+    .nullable(),
+  incrementIntervalMonths: optionalInt(1, 120),
+  leaseTerms: optionalText(5000),
+});
+export type LeaseFieldsInput = z.input<typeof leaseFieldsSchema>;
+
+export const checkInSchema = leaseFieldsSchema.extend({
   residentId: z.string().min(1, "Select a resident"),
   bedId: z.string().min(1, "Select a bed"),
   checkInDate: dateSchema,
@@ -99,8 +116,33 @@ export const checkInSchema = z.object({
       includeAdmissionFee: z.boolean().default(false),
     })
     .optional(),
+}).refine((v) => !v.leaseEndDate || !v.checkInDate || v.leaseEndDate >= v.checkInDate, {
+  message: "Lease end must be on or after the move-in date",
+  path: ["leaseEndDate"],
 });
 export type CheckInInput = z.input<typeof checkInSchema>;
+
+export const renewLeaseSchema = z
+  .object({
+    assignmentId: z.string().min(1),
+    leaseEndDate: dateSchema,
+    /** Optional new monthly rent… */
+    newMonthlyRent: z.union([z.literal("").transform(() => undefined), positiveMoney]).optional().nullable(),
+    /** …effective from this date (defaults to today). A future date is applied by the daily job. */
+    rentEffectiveDate: optionalDate,
+    noticePeriodDays: optionalInt(0, 365),
+    rentIncrementPercent: z
+      .union([z.literal("").transform(() => undefined), z.coerce.number().min(0, "Must be 0–100").max(100, "Must be 0–100")])
+      .optional()
+      .nullable(),
+    incrementIntervalMonths: optionalInt(1, 120),
+    leaseTerms: optionalText(5000),
+  })
+  .refine((v) => !v.rentEffectiveDate || !!v.newMonthlyRent, {
+    message: "Enter the new rent",
+    path: ["newMonthlyRent"],
+  });
+export type RenewLeaseInput = z.input<typeof renewLeaseSchema>;
 
 export const activateReservationSchema = z.object({
   assignmentId: z.string().min(1),

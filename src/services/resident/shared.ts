@@ -20,8 +20,21 @@ export async function lockResident(tx: Tx, organizationId: string, residentId: s
   await tx.$queryRaw`SELECT id FROM "Resident" WHERE id = ${residentId} AND "organizationId" = ${organizationId} FOR UPDATE`;
 }
 
-export function placementLabel(p: { room: { roomNumber: string }; bed: { bedNumber: string } } | { roomNumber: string; bedNumber: string }) {
-  return "room" in p ? `Room ${p.room.roomNumber} · Bed ${p.bed.bedNumber}` : `Room ${p.roomNumber} · Bed ${p.bedNumber}`;
+/**
+ * "Room 101 · Bed 2" — or "Unit 101" for whole-unit rentals, where the single
+ * bed represents the entire unit. Pass `wholeUnit` or an object whose
+ * `hostel.rentalMode` is WHOLE_UNIT.
+ */
+export function placementLabel(
+  p:
+    | { room: { roomNumber: string }; bed: { bedNumber: string }; hostel?: { [key: string]: unknown } }
+    | { roomNumber: string; bedNumber: string },
+  wholeUnit?: boolean,
+) {
+  const roomNumber = "room" in p ? p.room.roomNumber : p.roomNumber;
+  const bedNumber = "room" in p ? p.bed.bedNumber : p.bedNumber;
+  const whole = wholeUnit ?? ("room" in p && p.hostel?.["rentalMode"] === "WHOLE_UNIT");
+  return whole ? `Unit ${roomNumber}` : `Room ${roomNumber} · Bed ${bedNumber}`;
 }
 
 /**

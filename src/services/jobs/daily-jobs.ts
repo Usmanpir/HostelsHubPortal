@@ -6,6 +6,7 @@ import { notifyUsers } from "@/lib/notifications/notify";
 import { dateOnly, formatMoney, todayInTimeZone } from "@/lib/format";
 import { round2, toNumber } from "@/lib/serialize";
 import { reconcileOnlinePayments } from "@/services/payments/online-payment-service";
+import { runLeaseJobs } from "./lease-jobs";
 
 const REMINDER_DAYS_BEFORE_DUE = 3;
 
@@ -16,6 +17,8 @@ const REMINDER_DAYS_BEFORE_DUE = 3;
  *     due in exactly N days (idempotent per invoice per day via the link key)
  *  3. purge expired rate-limit buckets
  *  4. re-check stale PENDING online payments with the gateway and expire abandoned ones
+ *  5. leases: apply scheduled rent changes and due automatic increments, and send
+ *     LEASE_EXPIRING reminders 30 / 7 days before the lease end (see lease-jobs.ts)
  */
 export async function runDailyJobs() {
   const orgs = await prisma.organization.findMany({
@@ -23,6 +26,7 @@ export async function runDailyJobs() {
     select: { id: true, timezone: true, currency: true, locale: true },
   });
   let reminders = 0;
+  const leases = { rentChanges: 0, rentIncrements: 0, leaseReminders: 0 };
   for (const org of orgs) {
     await markOverdueInvoices(org.id, org.timezone);
     await dispatchDueAnnouncements(org.id);
@@ -49,8 +53,17 @@ export async function runDailyJobs() {
       });
       reminders++;
     }
+    try {
+      const r = await runLeaseJobs(org, today);
+      leases.rentChanges += r.rentChanges;
+      leases.rentIncrements += r.rentIncrements;
+      leases.leaseReminders += r.leaseReminders;
+    } catch (error) {
+      // One organization's lease data must not stop the run for everyone else.
+      console.error("[daily-jobs] lease jobs failed", org.id, error);
+    }
   }
   const purged = await prisma.rateLimitBucket.deleteMany({ where: { expiresAt: { lt: new Date() } } });
   const onlinePayments = await reconcileOnlinePayments();
-  return { organizations: orgs.length, reminders, rateLimitBucketsPurged: purged.count, onlinePayments };
+  return { organizations: orgs.length, reminders, rateLimitBucketsPurged: purged.count, onlinePayments, leases };
 }

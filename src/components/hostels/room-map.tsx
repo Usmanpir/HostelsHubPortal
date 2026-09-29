@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { EnumBadge } from "@/components/shared/status-badge";
+import { useTerms } from "@/components/shared/org-context";
 import { roomStatusLabels, roomStatusTones } from "@/config/labels";
 import type { BedStatus, RoomStatus, AssignmentStatus } from "@/generated/prisma/enums";
 import { BedTile } from "./bed-tile";
@@ -47,7 +48,17 @@ const FILTERS: { value: Filter; label: string }[] = [
 ];
 
 /** Interactive building visualizer: floors → rooms → colour-coded beds. */
-export function RoomMap({ floors, hostelName }: { floors: MapFloor[]; hostelName?: string }) {
+export function RoomMap({
+  floors,
+  hostelName,
+  wholeUnit = false,
+}: {
+  floors: MapFloor[];
+  hostelName?: string;
+  /** Whole-unit property: one tile per unit (its single bed) instead of room cards with beds. */
+  wholeUnit?: boolean;
+}) {
+  const t = useTerms();
   const [filter, setFilter] = useState<Filter>("ALL");
   const [selected, setSelected] = useState<BedDetail | null>(null);
 
@@ -88,24 +99,75 @@ export function RoomMap({ floors, hostelName }: { floors: MapFloor[]; hostelName
       </ToggleGroup>
 
       {visibleFloors.length === 0 ? (
-        <p className="rounded-xl border border-dashed py-10 text-center text-sm text-muted-foreground">No beds match this filter.</p>
+        <p className="rounded-xl border border-dashed py-10 text-center text-sm text-muted-foreground">
+          {wholeUnit ? "No units match this filter." : "No beds match this filter."}
+        </p>
       ) : null}
 
       {visibleFloors.map((floor) => (
         <section key={floor.id} className="rounded-xl border bg-card">
           <header className="flex items-center justify-between border-b px-4 py-2.5">
             <h3 className="text-sm font-semibold">{floor.name}</h3>
-            <span className="text-xs text-muted-foreground">{floor.rooms.length} rooms</span>
+            <span className="text-xs text-muted-foreground">
+              {floor.rooms.length} {(wholeUnit ? "units" : t.units).toLowerCase()}
+            </span>
           </header>
           {floor.rooms.length === 0 ? (
-            <p className="px-4 py-6 text-sm text-muted-foreground">No rooms on this floor yet.</p>
+            <p className="px-4 py-6 text-sm text-muted-foreground">
+              No {(wholeUnit ? "units" : t.units).toLowerCase()} on this floor yet.
+            </p>
+          ) : wholeUnit ? (
+            <div className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+              {floor.rooms.map((room) => {
+                const bed = room.beds[0];
+                if (!bed) {
+                  return (
+                    <Link
+                      key={room.id}
+                      href={`/hostels/rooms/${room.id}`}
+                      className="flex h-12 items-center rounded-lg border border-dashed px-2.5 text-xs text-muted-foreground hover:text-primary"
+                    >
+                      Unit {room.roomNumber} · not set up
+                    </Link>
+                  );
+                }
+                const a = bed.assignments[0] ?? null;
+                return (
+                  <BedTile
+                    key={room.id}
+                    bed={{
+                      id: bed.id,
+                      bedNumber: bed.bedNumber,
+                      status: bed.status,
+                      label: `Unit ${room.roomNumber}`,
+                      residentName: a ? `${a.resident.firstName} ${a.resident.lastName}` : null,
+                    }}
+                    onClick={() =>
+                      setSelected({
+                        id: bed.id,
+                        bedNumber: bed.bedNumber,
+                        status: bed.status,
+                        monthlyRent: bed.monthlyRent,
+                        notes: bed.notes,
+                        roomId: room.id,
+                        roomNumber: room.roomNumber,
+                        roomRent: room.rent,
+                        hostelName,
+                        wholeUnit: true,
+                        assignment: a,
+                      })
+                    }
+                  />
+                );
+              })}
+            </div>
           ) : (
             <div className="grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-3">
               {floor.rooms.map((room) => (
                 <div key={room.id} className="rounded-lg border bg-background p-3">
                   <div className="mb-2 flex items-center justify-between gap-2">
                     <Link href={`/hostels/rooms/${room.id}`} className="text-sm font-semibold hover:text-primary">
-                      Room {room.roomNumber}
+                      {t.unit} {room.roomNumber}
                     </Link>
                     <EnumBadge value={room.status} labels={roomStatusLabels} tones={roomStatusTones} />
                   </div>

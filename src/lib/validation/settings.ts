@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { NotificationType } from "@/generated/prisma/enums";
+import { BusinessType, NotificationType } from "@/generated/prisma/enums";
 import { CURRENCIES, TIMEZONES } from "@/config/defaults";
 import { isPermission, type Permission } from "@/lib/permissions/catalog";
 import { emailSchema, optionalEmail, optionalPhone, optionalText, requiredText } from "./common";
@@ -31,6 +31,22 @@ export const organizationSettingsSchema = z.object({
   logoFileId: z.string().trim().max(64).nullable().optional(),
 });
 export type OrganizationSettingsInput = z.input<typeof organizationSettingsSchema>;
+
+// ─── Business type & modules ────────────────────────────────────────────────
+
+export const businessModulesSchema = z
+  .object({
+    businessType: z.enum(Object.values(BusinessType) as [BusinessType, ...BusinessType[]], {
+      message: "Select a business type",
+    }),
+    ownersEnabled: z.boolean().default(false),
+    dealerEnabled: z.boolean().default(false),
+    /** Only meaningful with the dealer (sales & leasing) module; coerced off otherwise. */
+    publicListingsEnabled: z.boolean().default(false),
+    publicProfileIntro: optionalText(2000),
+  })
+  .transform((v) => ({ ...v, publicListingsEnabled: v.dealerEnabled && v.publicListingsEnabled }));
+export type BusinessModulesInput = z.input<typeof businessModulesSchema>;
 
 // ─── Branding (white-label) ─────────────────────────────────────────────────
 

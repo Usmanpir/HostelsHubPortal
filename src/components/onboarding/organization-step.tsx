@@ -1,9 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Controller } from "react-hook-form";
-import { ArrowRight, Check } from "lucide-react";
-import { FormGrid, SelectField, TextField } from "@/components/forms/fields";
+import { Controller, useWatch } from "react-hook-form";
+import { ArrowRight, BedDouble, Building2, Check, Handshake, Layers } from "lucide-react";
+import type { BusinessType } from "@/generated/prisma/enums";
+import { FormGrid, SelectField, SwitchField, TextField } from "@/components/forms/fields";
 import { SubmitButton } from "@/components/forms/submit-button";
 import { useActionForm } from "@/components/forms/use-action-form";
 import { FieldError, FieldLegend, FieldSet } from "@/components/ui/field";
@@ -11,10 +12,20 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { CURRENCIES, TIMEZONES } from "@/config/defaults";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { BUSINESS_TYPE_LABELS } from "@/lib/terms";
 import { onboardingOrganizationSchema, type OnboardingOrganizationInput } from "@/lib/validation/auth";
 import { saveOrganizationAction } from "@/app/onboarding/actions";
 import type { PlanSummary } from "./types";
 import { StepCard, StepFooter } from "./wizard-chrome";
+import { BUSINESS_TYPE_DESCRIPTIONS, suggestsOwners } from "./vocabulary";
+
+const BUSINESS_TYPE_ICONS: Record<BusinessType, typeof Building2> = {
+  HOSTELS: BedDouble,
+  PROPERTY_MANAGEMENT: Building2,
+  REAL_ESTATE: Handshake,
+  MIXED: Layers,
+};
+const BUSINESS_TYPE_ORDER: BusinessType[] = ["HOSTELS", "PROPERTY_MANAGEMENT", "REAL_ESTATE", "MIXED"];
 
 export function OrganizationStep({
   initial,
@@ -34,16 +45,73 @@ export function OrganizationStep({
     onSuccess: () => router.push("/onboarding?step=2"),
   });
   const c = form.control;
+  const businessType = (useWatch({ control: c, name: "businessType" }) ?? "HOSTELS") as BusinessType;
+  const isHostelOrg = businessType === "HOSTELS";
 
   return (
     <StepCard
       eyebrow="Step 1"
       title={isEditing ? "Your organization" : "Tell us about your organization"}
-      description="This is the business that owns your hostels. Currency and time zone are used for rent, invoices and reports."
+      description={`This is the business that owns your ${isHostelOrg ? "hostels" : "properties"}. Currency and time zone are used for rent, invoices and reports.`}
     >
       <form onSubmit={onSubmit} className="flex flex-col gap-6" noValidate>
+        <Controller
+          control={c}
+          name="businessType"
+          render={({ field, fieldState }) => (
+            <FieldSet>
+              <FieldLegend>What do you manage?</FieldLegend>
+              <p className="-mt-1 text-sm text-muted-foreground">We&apos;ll tailor the wording and features to your business. You can change this later.</p>
+              <RadioGroup
+                value={field.value ?? "HOSTELS"}
+                onValueChange={field.onChange}
+                className="grid gap-3 sm:grid-cols-2"
+                aria-label="What do you manage?"
+              >
+                {BUSINESS_TYPE_ORDER.map((type) => {
+                  const selected = (field.value ?? "HOSTELS") === type;
+                  const Icon = BUSINESS_TYPE_ICONS[type];
+                  return (
+                    <label
+                      key={type}
+                      htmlFor={`business-${type}`}
+                      className={cn(
+                        "flex cursor-pointer items-start gap-3 rounded-xl border bg-background p-4 transition-colors hover:border-primary/40",
+                        selected && "border-primary bg-primary/4 ring-3 ring-primary/15",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground",
+                          selected && "bg-primary/10 text-primary",
+                        )}
+                      >
+                        <Icon className="size-4.5" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-medium">{BUSINESS_TYPE_LABELS[type]}</span>
+                        <span className="mt-0.5 block text-xs text-pretty text-muted-foreground">{BUSINESS_TYPE_DESCRIPTIONS[type]}</span>
+                      </span>
+                      <RadioGroupItem id={`business-${type}`} value={type} className="mt-0.5" />
+                    </label>
+                  );
+                })}
+              </RadioGroup>
+              <FieldError errors={[fieldState.error]} />
+            </FieldSet>
+          )}
+        />
+        {suggestsOwners(businessType) ? (
+          <SwitchField
+            control={c}
+            name="ownersEnabled"
+            label="I manage properties on behalf of owners"
+            description="Track property owners, your management fee and owner payouts."
+          />
+        ) : null}
+
         <FormGrid>
-          <TextField control={c} name="name" label="Organization name" required placeholder="Sunrise Hostels" className="sm:col-span-2" />
+          <TextField control={c} name="name" label="Organization name" required placeholder={isHostelOrg ? "Sunrise Hostels" : "Sunrise Properties"} className="sm:col-span-2" />
           <TextField control={c} name="email" label="Business email" type="email" autoComplete="email" />
           <TextField control={c} name="phone" label="Phone" type="tel" autoComplete="tel" />
           <TextField control={c} name="city" label="City" autoComplete="address-level2" />

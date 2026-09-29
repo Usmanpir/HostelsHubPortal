@@ -1,14 +1,19 @@
 import { PageHeader } from "@/components/shared/page-header";
 import { ResidentForm } from "@/components/residents/resident-form";
-import { requireTenantPage } from "@/lib/tenant/server";
+import { getTenantContext, requireTenantPage } from "@/lib/tenant/server";
+import { termsFor } from "@/lib/terms";
 import { sp } from "@/lib/page-helpers";
 import { todayInTimeZone } from "@/lib/format";
 import { listHostelOptions } from "@/services/hostel/hostel-service";
 
-export const metadata = { title: "Add resident" };
+export async function generateMetadata() {
+  const ctx = await getTenantContext();
+  return { title: `Add ${termsFor(ctx?.organization.businessType).resident.toLowerCase()}` };
+}
 
 export default async function NewResidentPage({ searchParams }: PageProps<"/residents/new">) {
   const ctx = await requireTenantPage("residents.manage");
+  const t = termsFor(ctx.organization.businessType);
   const params = await searchParams;
   const hostels = (await listHostelOptions(ctx)).filter((h) => h.status !== "ARCHIVED");
   const returnTo = sp(params, "returnTo") === "check-in" ? { kind: "check-in" as const, bedId: sp(params, "bedId") } : undefined;
@@ -18,11 +23,19 @@ export default async function NewResidentPage({ searchParams }: PageProps<"/resi
   return (
     <>
       <PageHeader
-        title="Add resident"
-        description={returnTo ? "Register the resident, then continue with the check-in." : "Register a resident. You can check them in to a bed right after."}
+        title={`Add ${t.resident.toLowerCase()}`}
+        description={
+          t.property === "Hostel"
+            ? returnTo
+              ? "Register the resident, then continue with the check-in."
+              : "Register a resident. You can check them in to a bed right after."
+            : returnTo
+              ? `Register the ${t.resident.toLowerCase()}, then continue with the move-in.`
+              : `Register a ${t.resident.toLowerCase()}. You can move them in right after.`
+        }
         breadcrumbs={[
-          { label: "Residents", href: "/residents" },
-          ...(returnTo ? [{ label: "Check in", href: "/residents/check-in" }] : []),
+          { label: t.residents, href: "/residents" },
+          ...(returnTo ? [{ label: t.checkIn, href: "/residents/check-in" }] : []),
           { label: "New" },
         ]}
       />

@@ -10,6 +10,8 @@ import { serialize, toNumber } from "@/lib/serialize";
 import { claimUpload } from "@/services/files/file-service";
 import {
   brandingSchema,
+  businessModulesSchema,
+  type BusinessModulesInput,
   invoiceSettingsSchema,
   notificationSettingsSchema,
   organizationSettingsSchema,
@@ -283,6 +285,72 @@ export async function updateNotificationSettings(ctx: TenantContext, raw: Notifi
     );
   });
   return input;
+}
+
+// ─── Business type & modules ────────────────────────────────────────────────
+
+const modulesSelect = {
+  slug: true,
+  businessType: true,
+  ownersEnabled: true,
+  dealerEnabled: true,
+  publicListingsEnabled: true,
+  publicProfileIntro: true,
+} satisfies Prisma.OrganizationSelect;
+
+async function loadModules(ctx: TenantContext) {
+  const org = await prisma.organization.findFirst({
+    where: { id: ctx.organizationId, deletedAt: null },
+    select: modulesSelect,
+  });
+  if (!org) throw new NotFoundError("Organization");
+  return org;
+}
+
+/** Business type and optional modules, for the "Business & modules" section. */
+export async function getBusinessModules(ctx: TenantContext) {
+  requirePermission(ctx, "settings.organization");
+  return serialize(await loadModules(ctx));
+}
+
+export async function updateBusinessModules(ctx: TenantContext, raw: BusinessModulesInput) {
+  requirePermission(ctx, "settings.organization");
+  const input = parseInput(businessModulesSchema, raw);
+  const data = {
+    businessType: input.businessType,
+    ownersEnabled: input.ownersEnabled,
+    dealerEnabled: input.dealerEnabled,
+    publicListingsEnabled: input.publicListingsEnabled,
+    publicProfileIntro: input.publicProfileIntro ?? null,
+  };
+  const result = await prisma.$transaction(async (tx) => {
+    const before = await tx.organization.findFirst({
+      where: { id: ctx.organizationId, deletedAt: null },
+      select: modulesSelect,
+    });
+    if (!before) throw new NotFoundError("Organization");
+    const updated = await tx.organization.update({ where: { id: ctx.organizationId }, data, select: modulesSelect });
+    const pick = (o: typeof before) => ({
+      businessType: o.businessType,
+      ownersEnabled: o.ownersEnabled,
+      dealerEnabled: o.dealerEnabled,
+      publicListingsEnabled: o.publicListingsEnabled,
+      publicProfileIntro: o.publicProfileIntro,
+    });
+    await audit(
+      actorOf(ctx),
+      {
+        action: "settings.modules_changed",
+        entityType: "Organization",
+        entityId: ctx.organizationId,
+        before: pick(before),
+        after: pick(updated),
+      },
+      tx,
+    );
+    return updated;
+  });
+  return serialize(result);
 }
 
 // ─── Hostel settings index ──────────────────────────────────────────────────

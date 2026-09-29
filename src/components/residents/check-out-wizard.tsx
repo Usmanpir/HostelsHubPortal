@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { FileUpload, type UploadedFile } from "@/components/shared/file-upload";
-import { useFormatters } from "@/components/shared/org-context";
+import { useFormatters, useTerms } from "@/components/shared/org-context";
 import { chargeTypeLabels, optionsFrom, paymentMethodLabels } from "@/config/labels";
 import type { ChargeType, PaymentMethod } from "@/generated/prisma/enums";
 import { checkOutSchema, type CheckOutInput } from "@/lib/validation/resident";
@@ -28,10 +28,12 @@ import { ResidentAvatar } from "./resident-avatar";
 
 export type CheckOutPreview = Awaited<ReturnType<typeof getCheckOutPreview>>;
 
-const STEPS: WizardStep[] = [
-  { key: "resident", label: "Resident", description: "Only residents with an active stay are listed." },
-  { key: "settle", label: "Settle & confirm" },
-];
+function wizardSteps(resident: string, residents: string, stay: string): WizardStep[] {
+  return [
+    { key: "resident", label: resident, description: `Only ${residents.toLowerCase()} with an active ${stay.toLowerCase()} are listed.` },
+    { key: "settle", label: "Settle & confirm" },
+  ];
+}
 const RESIDENT = 0;
 const SETTLE = 1;
 
@@ -50,6 +52,8 @@ export function CheckOutWizard({
 }) {
   const router = useRouter();
   const fmt = useFormatters();
+  const t = useTerms();
+  const STEPS = wizardSteps(t.resident, t.residents, t.stay);
   const start = initialPreview ? SETTLE : RESIDENT;
   const [step, setStep] = useState(start);
   const [maxReached, setMaxReached] = useState(start);
@@ -148,7 +152,7 @@ export function CheckOutWizard({
       try {
         const res = await checkOutAction(payload);
         if (!res.ok) return void toast.error(res.error);
-        toast.success(res.message ?? "Resident checked out");
+        toast.success(res.message ?? `${t.resident} ${t.checkedOut.toLowerCase()}`);
         router.push(`/residents/${res.data.residentId}`);
         router.refresh();
       } catch {
@@ -168,7 +172,7 @@ export function CheckOutWizard({
       current={step}
       maxReached={maxReached}
       onStepClick={goTo}
-      title={preview?.resident.name ?? "Check out"}
+      title={preview?.resident.name ?? t.checkOut}
       footer={
         <>
           <Button variant="ghost" size="lg" onClick={() => (step === RESIDENT ? router.back() : goTo(RESIDENT))} disabled={pending}>

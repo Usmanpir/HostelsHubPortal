@@ -11,12 +11,18 @@ import { listHostelOptions } from "@/services/hostel/hostel-service";
 import { getOccupancy } from "@/services/hostel/occupancy";
 import { sp } from "@/lib/page-helpers";
 import { cn } from "@/lib/utils";
+import { termsFor } from "@/lib/terms";
+import { getTenantContext } from "@/lib/tenant/server";
 
-export const metadata = { title: "Room map" };
+export async function generateMetadata() {
+  const ctx = await getTenantContext();
+  return { title: `${termsFor(ctx?.organization.businessType).unit} map` };
+}
 
 export default async function RoomMapPage({ searchParams }: PageProps<"/hostels/map">) {
   const ctx = await requireTenantPage("rooms.view");
   const params = await searchParams;
+  const t = termsFor(ctx.organization.businessType);
   const hostels = await listHostelOptions(ctx);
   const requested = sp(params, "hostel");
   const hostelId =
@@ -25,21 +31,30 @@ export default async function RoomMapPage({ searchParams }: PageProps<"/hostels/
   if (!hostelId) {
     return (
       <>
-        <PageHeader title="Room map" />
-        <EmptyState icon={Building2} title="No hostels yet" description="Create a hostel with floors and rooms to see the visual map." />
+        <PageHeader title={`${t.unit} map`} />
+        <EmptyState
+          icon={Building2}
+          title={`No ${t.properties.toLowerCase()} yet`}
+          description={`Create a ${t.property.toLowerCase()} with floors and ${t.units.toLowerCase()} to see the visual map.`}
+        />
       </>
     );
   }
 
   const [floors, occupancy] = await Promise.all([getRoomMap(ctx, hostelId), getOccupancy(ctx, hostelId)]);
   const hostel = hostels.find((h) => h.id === hostelId)!;
+  const wholeUnit = hostel.rentalMode === "WHOLE_UNIT";
 
   return (
     <>
       <PageHeader
-        title="Room map"
-        description="Every floor, room and bed at a glance. Click a bed to see details or check someone in."
-        breadcrumbs={[{ label: "Hostels", href: "/hostels" }, { label: "Room map" }]}
+        title={`${t.unit} map`}
+        description={
+          wholeUnit
+            ? `Every floor and unit at a glance. Click a unit to see its ${t.resident.toLowerCase()} or ${t.checkIn.toLowerCase()} someone.`
+            : `Every floor, ${t.unit.toLowerCase()} and bed at a glance. Click a bed to see details or ${t.checkIn.toLowerCase()} someone.`
+        }
+        breadcrumbs={[{ label: t.properties, href: "/hostels" }, { label: `${t.unit} map` }]}
       />
       {hostels.length > 1 && !ctx.activeHostelId ? (
         <div className="mb-4 flex gap-1.5 overflow-x-auto pb-1">
@@ -59,8 +74,8 @@ export default async function RoomMapPage({ searchParams }: PageProps<"/hostels/
       </div>
       {floors.length === 0 ? (
         <EmptyState
-          title="No floors in this hostel"
-          description="Add floors and rooms to build the map."
+          title={`No floors in this ${t.property.toLowerCase()}`}
+          description={`Add floors and ${(wholeUnit ? "units" : t.units).toLowerCase()} to build the map.`}
           action={
             <Button asChild>
               <Link href={`/hostels/${hostelId}`}>Set up floors</Link>
@@ -68,7 +83,7 @@ export default async function RoomMapPage({ searchParams }: PageProps<"/hostels/
           }
         />
       ) : (
-        <RoomMap floors={floors} hostelName={hostel.name} />
+        <RoomMap floors={floors} hostelName={hostel.name} wholeUnit={wholeUnit} />
       )}
     </>
   );

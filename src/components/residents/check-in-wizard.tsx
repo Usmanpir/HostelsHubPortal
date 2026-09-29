@@ -13,20 +13,38 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { FormGrid, SelectField, TextField } from "@/components/forms/fields";
 import { useActionForm } from "@/components/forms/use-action-form";
 import { FileUpload, type UploadedFile } from "@/components/shared/file-upload";
-import { useCan, useFormatters } from "@/components/shared/org-context";
+import { Input } from "@/components/ui/input";
+import { useCan, useFormatters, useTerms } from "@/components/shared/org-context";
 import type { UseFormReturn } from "react-hook-form";
 import { checkInSchema, residentSchema, type CheckInInput, type ResidentInput, type ResidentValues } from "@/lib/validation/resident";
 import { checkInAction, createResidentAction } from "@/app/(app)/residents/actions";
 import { WizardShell, ReviewList, type WizardStep } from "./wizard-shell";
 import { ResidentSearch, type ResidentPick } from "./resident-search";
-import { BedMapPicker, findBed, HostelSelect, MapState, useHostelBedMap, type AssignableHostel } from "./bed-picker";
+import { BedMapPicker, findBed, HostelSelect, isWholeUnitMap, MapState, pickedLabel, useHostelBedMap, type AssignableHostel } from "./bed-picker";
 import { DateInput, MoneyInput, parseMoney, ToggleRow } from "./inputs";
 
-const STEPS: WizardStep[] = [
-  { key: "resident", label: "Resident", description: "Search for the resident, or add someone new." },
-  { key: "bed", label: "Bed", description: "Tap a green bed to select it." },
-  { key: "confirm", label: "Details & confirm" },
-];
+function wizardSteps(resident: string, whole: boolean): WizardStep[] {
+  return [
+    { key: "resident", label: resident, description: `Search for the ${resident.toLowerCase()}, or add someone new.` },
+    whole
+      ? { key: "bed", label: "Unit", description: "Tap a green unit to select it." }
+      : { key: "bed", label: "Bed", description: "Tap a green bed to select it." },
+    { key: "confirm", label: "Details & confirm" },
+  ];
+}
+
+/** "YYYY-MM-DD" + N months − 1 day (a 12-month lease from 1 Jan ends 31 Dec). */
+function leaseEndAfter(start: string, months: number) {
+  const d = new Date(`${start}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return "";
+  const y = d.getUTCFullYear();
+  const m = d.getUTCMonth() + months;
+  const last = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  const end = new Date(Date.UTC(y, m, Math.min(d.getUTCDate(), last)) - 86400_000);
+  return end.toISOString().slice(0, 10);
+}
+
+const optionalNumber = (v: string) => (v.trim() === "" ? undefined : Number(v));
 const RESIDENT = 0;
 const BED = 1;
 const CONFIRM = 2;
@@ -47,6 +65,7 @@ export function CheckInWizard({
   const router = useRouter();
   const can = useCan();
   const fmt = useFormatters();
+  const t = useTerms();
   const canInvoice = can("invoices.manage");
   const canCreateResident = can("residents.manage");
 
@@ -72,6 +91,12 @@ export function CheckInWizard({
   const [includeDeposit, setIncludeDeposit] = useState(true);
   const [includeAdmission, setIncludeAdmission] = useState(true);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  // Lease terms (shown up front for whole units; under Advanced for beds)
+  const [leaseEnd, setLeaseEnd] = useState("");
+  const [noticeDays, setNoticeDays] = useState("");
+  const [advance, setAdvance] = useState("");
+  const [incrementPct, setIncrementPct] = useState("");
+  const [leaseTerms, setLeaseTerms] = useState("");
   const [pending, startTransition] = useTransition();
 
   // Deep link (?bedId=): select the bed once its hostel map has loaded.
@@ -90,6 +115,10 @@ export function CheckInWizard({
   });
   const hostel = hostels.find((h) => h.id === hostelId) ?? null;
   const picked = bedId ? findBed(map, bedId) : null;
+  const hostelOrg = t.property === "Hostel";
+  const whole = map ? isWholeUnitMap(map) : hostel?.rentalMode ? hostel.rentalMode === "WHOLE_UNIT" : !hostelOrg;
+  const STEPS = wizardSteps(t.resident, whole);
+  const spot = whole ? "unit" : "bed";
 
   // Inline "New resident" mini-form: creates the resident, then carries on with the check-in.
   const quick = useActionForm({
@@ -135,11 +164,15 @@ export function CheckInWizard({
 
   const rentValue = parseMoney(rent);
   const depositValue = parseMoney(deposit);
-  const admissionFee = hostel?.admissionFee ?? 0;
+  const advanceValue = parseMoney(advance);
+  const admissionFee = whole ? 0 : (hostel?.admissionFee ?? 0);
   const futureDate = date > today;
   const invoiceOn = canInvoice && invoice;
   const invoiceTotal = invoiceOn
-    ? (includeRent ? rentValue || 0 : 0) + (includeDeposit ? depositValue || 0 : 0) + (includeAdmission && admissionFee > 0 ? admissionFee : 0)
+    ? (includeRent ? rentValue || 0 : 0) +
+      (includeDeposit ? depositValue || 0 : 0) +
+      (includeAdmission && admissionFee > 0 ? admissionFee : 0) +
+      (advanceValue > 0 ? advanceValue : 0)
     : 0;
 
   const rentError = Number.isNaN(rentValue) || rentValue < 0 ? "Enter a valid rent." : null;
@@ -149,16 +182,28 @@ export function CheckInWizard({
     : futureDate && !reserveOnly
       ? "Future dates are only for reservations. Turn on “Reserve only” under Advanced, or pick today."
       : null;
+  const pctValue = optionalNumber(incrementPct);
+  const noticeValue = optionalNumber(noticeDays);
+  const leaseError =
+    leaseEnd && date && leaseEnd < date
+      ? "Lease end must be on or after the move-in date."
+      : Number.isNaN(advanceValue) || advanceValue < 0
+        ? "Enter a valid advance."
+        : pctValue !== undefined && (Number.isNaN(pctValue) || pctValue < 0 || pctValue > 100)
+          ? "Annual increment must be between 0 and 100%."
+          : noticeValue !== undefined && (!Number.isInteger(noticeValue) || noticeValue < 0 || noticeValue > 365)
+            ? "Notice period must be 0–365 days."
+            : null;
   // Keep the reservation switch visible when the date needs it.
   const showAdvanced = advancedOpen || (futureDate && !reserveOnly);
 
   const stepValid = (i: number): string | null => {
     if (i === RESIDENT) return resident ? null : "Select a resident to continue.";
     if (i === BED) {
-      if (!hostelId) return "Select a hostel.";
-      return picked?.bed.selectable ? null : "Select an available bed.";
+      if (!hostelId) return `Select a ${t.property.toLowerCase()}.`;
+      return picked?.bed.selectable ? null : `Select an available ${spot}.`;
     }
-    return rentError ?? depositError ?? dateError;
+    return rentError ?? depositError ?? dateError ?? leaseError;
   };
 
   const goTo = (i: number) => {
@@ -204,6 +249,12 @@ export function CheckInWizard({
       agreementFileId: agreement?.id,
       reserveOnly,
       generateInvoice: invoiceOn ? { includeRent, includeDeposit, includeAdmissionFee: includeAdmission && admissionFee > 0 } : undefined,
+      leaseEndDate: leaseEnd || undefined,
+      noticePeriodDays: noticeValue,
+      advanceRent: advanceValue > 0 ? advanceValue : undefined,
+      rentIncrementPercent: pctValue,
+      incrementIntervalMonths: pctValue ? 12 : undefined,
+      leaseTerms: leaseTerms.trim() || undefined,
     };
     const parsed = checkInSchema.safeParse(payload);
     if (!parsed.success) {
@@ -218,12 +269,17 @@ export function CheckInWizard({
           if (res.code === "BUSINESS_RULE" || res.code === "CONFLICT") reload();
           return;
         }
-        toast.success(res.data.status === "RESERVED" ? `Bed reserved for ${resident!.name}` : `${resident!.name} checked in`, {
+        toast.success(
+          res.data.status === "RESERVED"
+            ? `${whole ? "Unit" : "Bed"} reserved for ${resident!.name}`
+            : `${resident!.name} ${t.checkedIn.toLowerCase()}`,
+          {
           action:
             res.data.invoiceId && can("invoices.view")
               ? { label: "View invoice", onClick: () => router.push(`/finance/invoices/${res.data.invoiceId}`) }
               : undefined,
-        });
+          },
+        );
         router.push(`/residents/${res.data.residentId}`);
         router.refresh();
       } catch {
@@ -232,7 +288,83 @@ export function CheckInWizard({
     });
   };
 
-  const placementLabel = picked ? `${picked.floor.name} · Room ${picked.room.roomNumber} · Bed ${picked.bed.bedNumber}` : "—";
+  const placementLabel = pickedLabel(map, picked, t.unit);
+
+  const leaseFields = (
+    <div className="flex flex-col gap-3">
+      <FormGrid className="sm:grid-cols-2">
+        <div className="flex flex-col gap-2">
+          <DateInput id="lease-end" label="Lease ends" value={leaseEnd} onChange={setLeaseEnd} min={date || undefined} />
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Lease length">
+            {[11, 12, 24].map((months) => {
+              const value = leaseEndAfter(date || today, months);
+              return (
+                <Button
+                  key={months}
+                  type="button"
+                  size="sm"
+                  variant={leaseEnd === value ? "default" : "outline"}
+                  onClick={() => setLeaseEnd(value)}
+                >
+                  {months} months
+                </Button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="lease-notice">Notice period (days)</Label>
+          <Input
+            id="lease-notice"
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={365}
+            value={noticeDays}
+            onChange={(e) => setNoticeDays(e.target.value)}
+            placeholder="30"
+            className="h-10"
+          />
+        </div>
+        <MoneyInput
+          id="lease-advance"
+          label="Advance rent"
+          currency={fmt.currency}
+          value={advance}
+          onChange={setAdvance}
+          description={invoiceOn && advanceValue > 0 ? "Added to the first invoice." : undefined}
+        />
+        <div className="grid gap-2">
+          <Label htmlFor="lease-increment">Annual rent increase (%)</Label>
+          <Input
+            id="lease-increment"
+            type="number"
+            inputMode="decimal"
+            min={0}
+            max={100}
+            step="0.5"
+            value={incrementPct}
+            onChange={(e) => setIncrementPct(e.target.value)}
+            placeholder="10"
+            className="h-10"
+          />
+          <p className="text-xs text-muted-foreground">Applied automatically every 12 months.</p>
+        </div>
+      </FormGrid>
+      <div className="grid gap-2">
+        <Label htmlFor="lease-terms">Lease terms</Label>
+        <Textarea
+          id="lease-terms"
+          rows={2}
+          value={leaseTerms}
+          onChange={(e) => setLeaseTerms(e.target.value)}
+          placeholder="Utilities, maintenance, subletting…"
+          maxLength={5000}
+        />
+      </div>
+      {leaseError ? <p className="text-sm text-destructive">{leaseError}</p> : null}
+    </div>
+  );
 
   return (
     <WizardShell
@@ -240,7 +372,7 @@ export function CheckInWizard({
       current={step}
       maxReached={maxReached}
       onStepClick={goTo}
-      title={resident ? resident.name : "Check in"}
+      title={resident ? resident.name : t.checkIn}
       footer={
         <>
           <Button variant="ghost" size="lg" onClick={() => (step === RESIDENT ? router.back() : goTo(step - 1))} disabled={pending}>
@@ -250,7 +382,7 @@ export function CheckInWizard({
           {step === CONFIRM ? (
             <Button onClick={submit} disabled={pending || (!picked && loading)} size="lg" className="flex-1 sm:flex-none">
               {pending ? <Spinner /> : reserveOnly ? <CalendarClock /> : <LogIn />}
-              {reserveOnly ? "Reserve bed" : "Check in"}
+              {reserveOnly ? `Reserve ${spot}` : t.checkIn}
             </Button>
           ) : step === RESIDENT && creating ? (
             <Button type="submit" form="quick-resident" size="lg" className="flex-1 sm:flex-none" disabled={quick.pending}>
@@ -283,7 +415,7 @@ export function CheckInWizard({
                 }}
               >
                 <UserPlus />
-                New resident
+                New {t.resident.toLowerCase()}
               </Button>
             ) : null}
             <ResidentSearch mode="check-in" selected={resident} onSelect={selectResident} />
@@ -295,7 +427,7 @@ export function CheckInWizard({
         <div className="flex flex-col gap-4">
           {hostels.length === 0 ? (
             <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-              There are no active hostels you can place residents in.
+              There are no active {t.properties.toLowerCase()} you can place {t.residents.toLowerCase()} in.
             </p>
           ) : hostels.length > 1 ? (
             <div className="max-w-sm">
@@ -327,9 +459,9 @@ export function CheckInWizard({
             <MapState failed={failed} onRetry={reload} />
           ) : (
             <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-              <p>Choose a bed first.</p>
+              <p>Choose a {spot} first.</p>
               <Button variant="outline" onClick={() => goTo(BED)}>
-                Choose a bed
+                Choose a {spot}
               </Button>
             </div>
           )
@@ -338,7 +470,7 @@ export function CheckInWizard({
             <ReviewList
               items={[
                 {
-                  label: "Resident",
+                  label: t.resident,
                   value: (
                     <button type="button" className="text-end underline-offset-4 hover:underline" onClick={() => goTo(RESIDENT)}>
                       {resident ? `${resident.name}${resident.code ? ` (${resident.code})` : ""}` : "—"}
@@ -346,7 +478,7 @@ export function CheckInWizard({
                   ),
                 },
                 {
-                  label: "Bed",
+                  label: whole ? "Unit" : "Bed",
                   value: (
                     <button type="button" className="text-end underline-offset-4 hover:underline" onClick={() => goTo(BED)}>
                       {hostels.length > 1 && hostel ? `${hostel.name} · ` : ""}
@@ -360,7 +492,7 @@ export function CheckInWizard({
             <FormGrid className="sm:grid-cols-3">
               <DateInput
                 id="checkin-date"
-                label={reserveOnly ? "Move-in date" : "Check-in date"}
+                label={reserveOnly || !hostelOrg ? "Move-in date" : "Check-in date"}
                 value={date}
                 onChange={setDate}
                 max={reserveOnly ? undefined : today}
@@ -376,6 +508,15 @@ export function CheckInWizard({
                 error={depositError ?? undefined}
               />
             </FormGrid>
+
+            {whole ? (
+              <section className="flex flex-col gap-3 rounded-xl border p-4" aria-labelledby="lease-heading">
+                <h3 id="lease-heading" className="text-sm font-semibold">
+                  Lease
+                </h3>
+                {leaseFields}
+              </section>
+            ) : null}
 
             {canInvoice ? (
               <ToggleRow
@@ -393,7 +534,9 @@ export function CheckInWizard({
                 <span>
                   Advanced
                   {!showAdvanced ? (
-                    <span className="block text-xs font-normal text-muted-foreground">Reserve only, notes, agreement{invoiceOn ? ", invoice items" : ""}</span>
+                    <span className="block text-xs font-normal text-muted-foreground">
+                      Reserve only, {whole ? "" : "lease terms, "}notes, agreement{invoiceOn ? ", invoice items" : ""}
+                    </span>
                   ) : null}
                 </span>
                 <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
@@ -402,7 +545,11 @@ export function CheckInWizard({
                 <ToggleRow
                   id="checkin-reserve"
                   label="Reserve only"
-                  description="Hold the bed now; check the resident in when they arrive."
+                  description={
+                    hostelOrg
+                      ? "Hold the bed now; check the resident in when they arrive."
+                      : `Hold the ${spot} now; move the ${t.resident.toLowerCase()} in when they arrive.`
+                  }
                   checked={reserveOnly}
                   onChange={setReserveOnly}
                 />
@@ -414,8 +561,17 @@ export function CheckInWizard({
                     {admissionFee > 0 ? (
                       <CheckRow id="inv-admission" label={`Admission fee · ${fmt.money(admissionFee)}`} checked={includeAdmission} onChange={setIncludeAdmission} />
                     ) : null}
+                    {advanceValue > 0 ? (
+                      <p className="text-sm text-muted-foreground">Advance rent · {fmt.money(advanceValue)} (always billed when set)</p>
+                    ) : null}
                   </fieldset>
                 ) : null}
+                {whole ? null : (
+                  <fieldset className="grid gap-3">
+                    <legend className="mb-2 text-sm font-medium">Lease terms (optional)</legend>
+                    {leaseFields}
+                  </fieldset>
+                )}
                 <div className="grid gap-2">
                   <Label>Signed agreement</Label>
                   <FileUpload purpose="assignment-document" value={agreement} onChange={setAgreement} label="Upload agreement" />
@@ -429,13 +585,14 @@ export function CheckInWizard({
 
             <div className="rounded-xl bg-muted/40 p-4 text-sm">
               <p>
-                {reserveOnly ? "Reserve " : "Check in "}
+                {reserveOnly ? "Reserve " : `${t.checkIn} `}
                 <span className="font-medium">{resident?.name ?? "—"}</span> to <span className="font-medium">{placementLabel}</span>{" "}
                 {reserveOnly ? "from" : "on"} <span className="font-medium">{date ? fmt.date(date) : "—"}</span>.
               </p>
               <p className="mt-1 text-muted-foreground">
                 Rent <span className="tabular text-foreground">{fmt.money(rentValue || 0)}</span>/month · deposit{" "}
                 <span className="tabular text-foreground">{fmt.money(depositValue || 0)}</span>
+                {leaseEnd ? <> · lease until {fmt.date(leaseEnd)}</> : null}
                 {canInvoice ? (
                   <>
                     {" · "}
@@ -483,10 +640,11 @@ function QuickResidentForm({
   onCancel: () => void;
 }) {
   const c = form.control;
+  const t = useTerms();
   return (
     <form id="quick-resident" onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold">New resident</h3>
+        <h3 className="text-sm font-semibold">New {t.resident.toLowerCase()}</h3>
         <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={pending}>
           <X />
           Search instead
@@ -497,10 +655,10 @@ function QuickResidentForm({
         <TextField control={c} name="lastName" label="Last name" required autoComplete="off" />
         <TextField control={c} name="phone" label="Phone" type="tel" required inputMode="tel" placeholder="+92 300 1234567" />
         {hostels.length !== 1 ? (
-          <SelectField control={c} name="hostelId" label="Hostel" required options={hostels.map((h) => ({ value: h.id, label: h.name }))} />
+          <SelectField control={c} name="hostelId" label={t.property} required options={hostels.map((h) => ({ value: h.id, label: h.name }))} />
         ) : null}
       </fieldset>
-      <p className="text-xs text-muted-foreground">Add the rest of the profile later from the resident page.</p>
+      <p className="text-xs text-muted-foreground">Add the rest of the profile later from the {t.resident.toLowerCase()} page.</p>
     </form>
   );
 }

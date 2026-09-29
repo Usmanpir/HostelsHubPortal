@@ -5,6 +5,7 @@ import { assignmentStatusLabels, assignmentStatusTones } from "@/config/labels";
 import type { AssignmentStatus } from "@/generated/prisma/enums";
 import { formatDate, formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { termsFor, type Terms } from "@/lib/terms";
 
 export type TimelineStay = {
   id: string;
@@ -19,7 +20,7 @@ export type TimelineStay = {
   meterReading: string | null;
   endReason: string | null;
   notes: string | null;
-  hostel: { id: string; name: string };
+  hostel: { id: string; name: string; rentalMode?: string };
   room: { id: string; roomNumber: string; floor: { name: string } };
   bed: { id: string; bedNumber: string };
   createdBy: { name: string } | null;
@@ -50,14 +51,23 @@ export function StayTimeline({
   currency,
   locale,
   showRoomLinks,
+  terms,
 }: {
   stays: TimelineStay[];
   currency: string;
   locale?: string;
   showRoomLinks: boolean;
+  terms?: Terms;
 }) {
+  const t = terms ?? termsFor("HOSTELS");
   if (stays.length === 0) {
-    return <p className="px-4 py-10 text-center text-sm text-muted-foreground">No stays yet. Check the resident in to assign a bed.</p>;
+    return (
+      <p className="px-4 py-10 text-center text-sm text-muted-foreground">
+        {t.property === "Hostel"
+          ? "No stays yet. Check the resident in to assign a bed."
+          : `No ${t.stays.toLowerCase()} yet. Move the ${t.resident.toLowerCase()} in to assign a unit.`}
+      </p>
+    );
   }
   const money = (n: number) => formatMoney(n, currency, locale);
   return (
@@ -66,7 +76,8 @@ export function StayTimeline({
         const Icon = ICONS[s.status];
         const live = s.status === "ACTIVE" || s.status === "RESERVED";
         const end = s.checkOutDate ?? (s.status === "ACTIVE" ? new Date() : null);
-        const room = `Room ${s.room.roomNumber} · Bed ${s.bed.bedNumber}`;
+        const room =
+          s.hostel.rentalMode === "WHOLE_UNIT" ? `Unit ${s.room.roomNumber}` : `${t.unit} ${s.room.roomNumber} · Bed ${s.bed.bedNumber}`;
         return (
           <li key={s.id} className="relative flex gap-4 pb-6 last:pb-0">
             {i < stays.length - 1 ? <span className="absolute start-4 top-9 bottom-0 w-px bg-border" aria-hidden /> : null}

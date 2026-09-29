@@ -2,14 +2,14 @@
 
 # HostelHub
 
-**Multi-tenant hostel management platform. Run every property, bed, resident and payment from one place.**
+**Multi-tenant property management platform for hostels, rentals and property dealers. Run every property, unit, tenant, lease and payment from one place.**
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org)
 [![Prisma](https://img.shields.io/badge/Prisma-7-2D3748?logo=prisma)](https://www.prisma.io)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
-[![Tests](https://img.shields.io/badge/integration_tests-50_passing-2EA44F)](#testing)
+[![Tests](https://img.shields.io/badge/integration_tests-134_passing-2EA44F)](#testing)
 
 [Overview](#overview) · [Features](#features) · [Quick start](#quick-start) · [Architecture](#architecture) · [Security](#security) · [Deployment](#deployment)
 
@@ -21,12 +21,16 @@
 
 ## Overview
 
-HostelHub is a SaaS application for hostel owners, property managers, student-accommodation providers, PG operators and worker-dormitory operators. One organization can run many hostels, and the whole hierarchy is modelled explicitly:
+HostelHub is a SaaS application for hostel and PG operators, landlords, property managers, and real-estate dealers. At sign-up each organization picks a **business type**: hostels, rental properties, a real-estate agency, or mixed. The app's wording and modules then adapt to it. For example, a rental business sees "Properties → Units → Tenants → Leases" instead of "Hostels → Rooms → Beds → Residents".
 
 ```
-Organization → Hostels → Floors → Rooms → Beds → Residents
-             → Staff (assigned to one or more hostels)
+Organization → Properties (hostel, apartment building, house, plaza…) → Floors → Units / Rooms → Beds → Tenants / Residents
+             → Owners (landlords whose properties you manage)
+             → Listings → Leads → Viewings → Deals
+             → Staff (assigned to one or more properties)
 ```
+
+Hostels are one property kind among several. A property is rented either **per bed** (hostels and PGs) or as a **whole unit** (apartments, houses, portions, shops, offices).
 
 Every organization is a fully isolated tenant. Access is controlled by granular, editable roles that can be restricted to specific hostels. The platform covers the full operating cycle:
 
@@ -56,7 +60,28 @@ Every organization is a fully isolated tenant. Access is controlled by granular,
 - Live occupancy, calculated as occupied beds ÷ (total − maintenance − inactive), overall and per hostel
 - Global hostel switcher in the header that filters every screen without signing out
 
-### Residents
+### Rentals and leases
+- Property kinds (hostel, apartment building, house, commercial plaza, and more) and unit types (studio, apartment, house, portion, shop, office, warehouse) with bedrooms, bathrooms, area and furnishing
+- Whole-unit leases with an end date, notice period, advance rent, terms, and **automatic yearly rent increments**
+- Lease renewal, a list of leases that are expiring soon, and 30- and 7-day expiry reminders from the daily job
+
+### Owners (landlords)
+- Owner records linked to the properties you manage for them, with a management-fee percentage
+- Owner statements showing rent collected, expenses and management fee, and payouts tracked from pending to paid
+
+### Sales and leasing (dealer CRM)
+- **Listings** for sale or rent, with photos, price, area, location and publish status
+- **Leads** in a pipeline (new → contacted → viewing → negotiating → won/lost), with an activity timeline and assigned agents
+- **Viewings** scheduling, and **deals** with commission tracking from offer to closed
+- A dedicated **Agent** role limited to sales and leasing
+
+### Public listings page
+- Each organization can publish a public page at `/l/<org-slug>` that lists its published listings, with a detail page for each
+- Visitor enquiries become leads automatically. The form has spam protection and rate limiting
+
+Owners, sales and leasing, and public listings are modules. Turn each one on or off under **Settings → Business**.
+
+### Residents / tenants
 - Complete resident profiles with private document storage (ID, agreement, admission form, clearance)
 - Guided **check-in** and **check-out** wizards, room and bed **transfers**, and **reservations**
 - Full stay history is preserved, for example "Room 101 · Bed 2, Jan–Mar → Room 205 · Bed 1, Apr–present"
@@ -157,6 +182,15 @@ All demo accounts use the password **`Demo@12345`**.
 | Resident | `resident@demo-hostels.dev` | Resident portal (`/portal`) |
 | Super admin | `admin@hostelhub.dev` | Platform console (`/admin`) |
 | Other tenant | `owner@other-tenant.dev` | A separate organization |
+
+The seed also creates **Demo Property Group**, a mixed rental and real-estate organization. It has two landlords and three properties: an apartment building, a house split into portions, and a shop plaza. It also has tenants on leases (two expire soon), invoices, listings, leads, viewings and deals. Its public page is at [`/l/demo-property-group`](http://localhost:3000/l/demo-property-group).
+
+| Role | Email | Scope |
+| --- | --- | --- |
+| Owner | `property@demo-rentals.dev` | Everything in Demo Property Group |
+| Agent | `agent@demo-rentals.dev` | Listings, leads, viewings and deals only |
+
+To recreate the property demo from scratch, run `npx tsx --conditions=react-server scripts/reset-property-demo.mts`, then `npm run db:seed`.
 
 > [!WARNING]
 > These credentials are for local development only. The seed refuses to run when `NODE_ENV=production`.

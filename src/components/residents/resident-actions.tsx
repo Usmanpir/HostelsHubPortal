@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ConfirmAction } from "@/components/shared/confirm-action";
 import { FormDialog } from "@/components/shared/form-dialog";
-import { useCan } from "@/components/shared/org-context";
+import { useCan, useTerms } from "@/components/shared/org-context";
 import type {
   AssignmentStatus,
   ResidentStatus,
@@ -72,6 +72,7 @@ export function ResidentActions({
   openTransfer: boolean;
 }) {
   const can = useCan();
+  const t = useTerms();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const canManage = can("residents.manage");
@@ -111,7 +112,7 @@ export function ResidentActions({
             <Button asChild>
               <Link href={`/residents/check-in?residentId=${resident.id}`}>
                 <LogIn />
-                Check in
+                {t.checkIn}
               </Link>
             </Button>
           ) : null}
@@ -163,7 +164,7 @@ export function ResidentActions({
               <Button asChild variant="outline">
                 <Link href={`/residents/check-out?residentId=${resident.id}`}>
                   <LogOut />
-                  Check out
+                  {t.checkOut}
                 </Link>
               </Button>
             </>
@@ -263,6 +264,8 @@ function ActivateReservationDialog({
   today: string;
 }) {
   const router = useRouter();
+  const t = useTerms();
+  const hostelOrg = t.property === "Hostel";
   const [open, setOpen] = useState(false);
   const [date, setDate] = useState(today);
   const [pending, startTransition] = useTransition();
@@ -276,7 +279,7 @@ function ActivateReservationDialog({
           checkInDate: date,
         });
         if (res.ok) {
-          toast.success(res.message ?? "Checked in");
+          toast.success(res.message ?? t.checkedIn);
           setOpen(false);
           router.refresh();
         } else toast.error(res.error);
@@ -289,19 +292,23 @@ function ActivateReservationDialog({
     <FormDialog
       open={open}
       onOpenChange={setOpen}
-      title="Check in reserved resident"
-      description="The reservation becomes an active stay and the bed is marked occupied."
+      title={`${t.checkIn} reserved ${t.resident.toLowerCase()}`}
+      description={
+        hostelOrg
+          ? "The reservation becomes an active stay and the bed is marked occupied."
+          : `The reservation becomes an active ${t.stay.toLowerCase()} and the unit is marked occupied.`
+      }
       trigger={
         <Button>
           <CalendarCheck />
-          Check in now
+          {t.checkIn} now
         </Button>
       }
     >
       <div className="flex flex-col gap-4">
         <DateInput
           id="activate-date"
-          label="Check-in date"
+          label={hostelOrg ? "Check-in date" : "Move-in date"}
           value={date}
           onChange={setDate}
           max={today}
@@ -317,7 +324,7 @@ function ActivateReservationDialog({
           </Button>
           <Button onClick={submit} disabled={pending || future || !date}>
             {pending ? <Spinner /> : <LogIn />}
-            Check in
+            {t.checkIn}
           </Button>
         </div>
       </div>

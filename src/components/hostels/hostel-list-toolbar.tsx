@@ -5,9 +5,11 @@ import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useUrlState } from "@/hooks/use-url-state";
+import { useTerms } from "@/components/shared/org-context";
 
 export function HostelListToolbar() {
   const url = useUrlState();
+  const t = useTerms();
   const [q, setQ] = useState(url.get("q"));
   useEffect(() => {
     if (q === url.get("q")) return;
@@ -19,7 +21,7 @@ export function HostelListToolbar() {
     <div className="mb-4 flex flex-col gap-2 sm:flex-row">
       <div className="relative sm:w-72">
         <Search className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name, code or city" className="ps-8" aria-label="Search hostels" />
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name, code or city" className="ps-8" aria-label={`Search ${t.properties.toLowerCase()}`} />
       </div>
       <Select value={url.get("status") || "OPEN"} onValueChange={(v) => url.set({ status: v === "OPEN" ? null : v })}>
         <SelectTrigger className="sm:w-44" aria-label="Status">

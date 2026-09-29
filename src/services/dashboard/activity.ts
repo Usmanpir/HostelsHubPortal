@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 import { round2, toNumber } from "@/lib/serialize";
 import { can, scopedWhere, type TenantContext } from "@/lib/tenant/context";
 import type { Permission } from "@/lib/permissions/catalog";
+import { termsFor } from "@/lib/terms";
 
 export type ActivityKind = "resident" | "checkin" | "checkout" | "payment" | "invoice" | "complaint" | "maintenance" | "staff" | "visitor" | "other";
 
@@ -36,6 +37,21 @@ const KIND_PERMISSION: Record<ActivityKind, Permission | null> = {
 const FEED_PREFIXES = ["resident.", "assignment.", "payment.", "invoice.", "complaint.", "maintenance.", "staff.", "visitor.", "checkin.", "checkout."];
 
 const name = (p: { firstName: string; lastName: string } | null | undefined) => (p ? `${p.firstName} ${p.lastName}`.trim() : null);
+
+/** Feed wording in the organization's vocabulary (hostel vs property). */
+function feedWords(ctx: TenantContext) {
+  const t = termsFor(ctx.organization.businessType);
+  const hostel = ctx.organization.businessType === "HOSTELS";
+  const resident = t.resident.toLowerCase();
+  return {
+    checkedIn: hostel ? "checked in" : "moved in",
+    checkedOut: hostel ? "checked out" : "moved out",
+    resident,
+    aResident: `a ${resident}`,
+    AResident: `A ${resident}`,
+    unit: (n: string) => `${t.unit} ${n}`,
+  };
+}
 
 function humanVerb(action: string) {
   const verb = action.split(".").slice(1).join(" ").replace(/_/g, " ").trim();
@@ -74,6 +90,7 @@ async function auditFeed(ctx: TenantContext): Promise<ActivityItem[]> {
     return !perm || can(ctx, perm);
   });
   const entries = visible.slice(0, FEED_LIMIT);
+  const w = feedWords(ctx);
   const idsOf = (type: string) => [...new Set(entries.filter((e) => e.entityType === type && e.entityId).map((e) => e.entityId!))];
   const org = ctx.organizationId;
   const [residents, payments, invoices, complaints, maintenance, assignments, staff, visitors] = await Promise.all([
@@ -133,19 +150,19 @@ async function auditFeed(ctx: TenantContext): Promise<ActivityItem[]> {
         const r = R.get(id);
         href = r ? `/residents/${id}` : null;
         const label = name(r);
-        if (e.action === "resident.created") parts = [{ text: "added a new resident" }, ...(label ? [{ text: label, strong: true }] : [])];
-        else if (kind === "checkout") parts = [{ text: "checked out" }, ...(label ? [{ text: label, strong: true }] : [])];
-        else if (kind === "checkin") parts = [{ text: "checked in" }, ...(label ? [{ text: label, strong: true }] : [])];
-        else parts = [{ text: `${verb} resident` }, ...(label ? [{ text: label, strong: true }] : [])];
+        if (e.action === "resident.created") parts = [{ text: `added a new ${w.resident}` }, ...(label ? [{ text: label, strong: true }] : [])];
+        else if (kind === "checkout") parts = [{ text: w.checkedOut }, ...(label ? [{ text: label, strong: true }] : [])];
+        else if (kind === "checkin") parts = [{ text: w.checkedIn }, ...(label ? [{ text: label, strong: true }] : [])];
+        else parts = [{ text: `${verb} ${w.resident}` }, ...(label ? [{ text: label, strong: true }] : [])];
         break;
       }
       case "ResidentAssignment": {
         const a = A.get(id);
         href = a ? `/residents/${a.residentId}` : null;
         const label = name(a?.resident);
-        const room = a ? `Room ${a.room.roomNumber}` : null;
-        if (kind === "checkout") parts = [{ text: "checked out" }, ...(label ? [{ text: label, strong: true }] : [])];
-        else if (kind === "checkin") parts = [{ text: "checked in" }, ...(label ? [{ text: label, strong: true }] : []), ...(room ? [{ text: `to ${room}` }] : [])];
+        const room = a ? w.unit(a.room.roomNumber) : null;
+        if (kind === "checkout") parts = [{ text: w.checkedOut }, ...(label ? [{ text: label, strong: true }] : [])];
+        else if (kind === "checkin") parts = [{ text: w.checkedIn }, ...(label ? [{ text: label, strong: true }] : []), ...(room ? [{ text: `to ${room}` }] : [])];
         else parts = [{ text: `${verb}` }, ...(label ? [{ text: label, strong: true }] : [])];
         break;
       }
@@ -184,6 +201,7 @@ async function scopedFeed(ctx: TenantContext): Promise<ActivityItem[]> {
   const where = scopedWhere(ctx);
   const take = FEED_LIMIT;
   const none = Promise.resolve([]);
+  const w = feedWords(ctx);
   const residentSelect = { firstName: true, lastName: true } satisfies Prisma.ResidentSelect;
   const [checkIns, checkOuts, payments, complaints, maintenance] = await Promise.all([
     can(ctx, "residents.view")
@@ -232,7 +250,7 @@ async function scopedFeed(ctx: TenantContext): Promise<ActivityItem[]> {
       id: `in-${a.id}`,
       kind: "checkin" as const,
       actor: a.createdBy?.name ?? null,
-      parts: [{ text: "checked in" }, { text: name(a.resident) ?? "a resident", strong: true }, { text: `to Room ${a.room.roomNumber}` }],
+      parts: [{ text: w.checkedIn }, { text: name(a.resident) ?? w.aResident, strong: true }, { text: `to ${w.unit(a.room.roomNumber)}` }],
       href: `/residents/${a.residentId}`,
       at: a.createdAt,
     })),
@@ -240,7 +258,7 @@ async function scopedFeed(ctx: TenantContext): Promise<ActivityItem[]> {
       id: `out-${a.id}`,
       kind: "checkout" as const,
       actor: null,
-      parts: [{ text: name(a.resident) ?? "A resident", strong: true }, { text: "checked out" }],
+      parts: [{ text: name(a.resident) ?? w.AResident, strong: true }, { text: w.checkedOut }],
       href: `/residents/${a.residentId}`,
       at: a.updatedAt,
     })),
@@ -250,8 +268,8 @@ async function scopedFeed(ctx: TenantContext): Promise<ActivityItem[]> {
       actor: p.receivedBy?.name ?? null,
       parts:
         p.type === "REFUND"
-          ? [{ text: "issued a refund of" }, { amount: round2(toNumber(p.amount)) }, { text: "to" }, { text: name(p.resident) ?? "a resident", strong: true }]
-          : [{ text: "recorded a payment of" }, { amount: round2(toNumber(p.amount)) }, { text: "from" }, { text: name(p.resident) ?? "a resident", strong: true }],
+          ? [{ text: "issued a refund of" }, { amount: round2(toNumber(p.amount)) }, { text: "to" }, { text: name(p.resident) ?? w.aResident, strong: true }]
+          : [{ text: "recorded a payment of" }, { amount: round2(toNumber(p.amount)) }, { text: "from" }, { text: name(p.resident) ?? w.aResident, strong: true }],
       href: `/finance/payments/${p.id}`,
       at: p.createdAt,
     })),

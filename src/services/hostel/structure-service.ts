@@ -1,6 +1,6 @@
 import { prisma, type DbClient } from "@/lib/db/prisma";
 import type { Prisma } from "@/generated/prisma/client";
-import type { BedStatus, RoomStatus, RoomType } from "@/generated/prisma/enums";
+import type { BedStatus, RentalMode, RoomStatus, RoomType } from "@/generated/prisma/enums";
 import { audit } from "@/lib/audit";
 import { BusinessRuleError, ConflictError, NotFoundError } from "@/lib/errors";
 import {
@@ -37,7 +37,7 @@ export async function listFloors(ctx: TenantContext, hostelId?: string | null) {
     where: { ...scopedWhere(ctx, hostelId), archivedAt: null, hostel: { archivedAt: null } },
     orderBy: [{ hostel: { name: "asc" } }, { floorNumber: "asc" }],
     include: {
-      hostel: { select: { id: true, name: true, code: true } },
+      hostel: { select: { id: true, name: true, code: true, rentalMode: true } },
       _count: { select: { rooms: { where: { archivedAt: null } } } },
     },
   });
@@ -146,7 +146,7 @@ export async function listRooms(ctx: TenantContext, filters: RoomFilters = {}) {
       take,
       orderBy: [{ hostel: { name: "asc" } }, { floor: { floorNumber: "asc" } }, { roomNumber: "asc" }],
       include: {
-        hostel: { select: { id: true, name: true, code: true } },
+        hostel: { select: { id: true, name: true, code: true, rentalMode: true } },
         floor: { select: { id: true, name: true, floorNumber: true } },
         beds: { where: { archivedAt: null }, select: { id: true, status: true } },
       },
@@ -167,7 +167,7 @@ export async function getRoom(ctx: TenantContext, id: string) {
   const room = await prisma.room.findFirst({
     where: { id, ...accessWhere(ctx), archivedAt: null },
     include: {
-      hostel: { select: { id: true, name: true, code: true } },
+      hostel: { select: { id: true, name: true, code: true, rentalMode: true } },
       floor: { select: { id: true, name: true, floorNumber: true } },
       beds: {
         where: { archivedAt: null },
@@ -194,10 +194,17 @@ export async function getRoom(ctx: TenantContext, id: string) {
 async function loadFloorForWrite(ctx: TenantContext, floorId: string) {
   const floor = await prisma.floor.findFirst({
     where: { id: floorId, ...accessWhere(ctx), archivedAt: null, hostel: { archivedAt: null } },
-    select: { id: true, hostelId: true },
+    select: { id: true, hostelId: true, hostel: { select: { rentalMode: true } } },
   });
   if (!floor) throw new NotFoundError("Floor");
-  return floor;
+  return { id: floor.id, hostelId: floor.hostelId, rentalMode: floor.hostel.rentalMode };
+}
+
+/** Whole-unit rentals: a unit is leased to one tenant, represented by exactly one bed. */
+function assertWholeUnitCapacity(rentalMode: RentalMode, capacity: number) {
+  if (rentalMode === "WHOLE_UNIT" && capacity !== 1) {
+    throw new BusinessRuleError("Units in a whole-unit property are rented to one tenant — capacity must be 1.");
+  }
 }
 
 async function createBedsForRoom(
@@ -221,7 +228,10 @@ export async function createRoom(ctx: TenantContext, raw: RoomInput) {
   requirePermission(ctx, "rooms.manage");
   const input = parseInput(roomSchema, raw);
   const floor = await loadFloorForWrite(ctx, input.floorId);
-  const bedsToCreate = Math.min(input.createBeds ?? input.capacity, input.capacity);
+  assertWholeUnitCapacity(floor.rentalMode, input.capacity);
+  // A whole unit always gets its single bed, so it can be leased right away.
+  const bedsToCreate =
+    floor.rentalMode === "WHOLE_UNIT" ? 1 : Math.min(input.createBeds ?? input.capacity, input.capacity);
   if (bedsToCreate > 0) await assertWithinLimit(prisma, ctx.organizationId, "beds", bedsToCreate);
 
   const clash = await prisma.room.findUnique({
@@ -234,6 +244,9 @@ export async function createRoom(ctx: TenantContext, raw: RoomInput) {
     const room = await tx.room.create({
       data: {
         ...data,
+        bedrooms: data.bedrooms ?? null,
+        bathrooms: data.bathrooms ?? null,
+        areaSqft: data.areaSqft ?? null,
         status: data.status ?? "AVAILABLE",
         organizationId: ctx.organizationId,
         hostelId: floor.hostelId,
@@ -249,6 +262,7 @@ export async function bulkCreateRooms(ctx: TenantContext, raw: BulkRoomsInput) {
   requirePermission(ctx, "rooms.manage");
   const input = parseInput(bulkRoomsSchema, raw);
   const floor = await loadFloorForWrite(ctx, input.floorId);
+  assertWholeUnitCapacity(floor.rentalMode, input.capacity);
   await assertWithinLimit(prisma, ctx.organizationId, "beds", input.count * input.capacity);
   const numbers = Array.from({ length: input.count }, (_, i) => `${input.prefix}${input.startNumber + i}`);
   const clashes = await prisma.room.findMany({
@@ -269,6 +283,10 @@ export async function bulkCreateRooms(ctx: TenantContext, raw: BulkRoomsInput) {
           roomType: input.roomType,
           capacity: input.capacity,
           rent: input.rent ?? null,
+          bedrooms: input.bedrooms ?? null,
+          bathrooms: input.bathrooms ?? null,
+          areaSqft: input.areaSqft ?? null,
+          furnished: input.furnished,
         },
       });
       await createBedsForRoom(tx, room, input.capacity);
@@ -285,6 +303,7 @@ export async function updateRoom(ctx: TenantContext, id: string, raw: RoomInput)
   if (!before) throw new NotFoundError("Room");
   const floor = await loadFloorForWrite(ctx, input.floorId);
   if (floor.hostelId !== before.hostelId) throw new BusinessRuleError("A room cannot be moved to another hostel.");
+  assertWholeUnitCapacity(floor.rentalMode, input.capacity);
 
   const bedCount = await prisma.bed.count({ where: { roomId: id, archivedAt: null } });
   if (input.capacity < bedCount) {
@@ -309,6 +328,9 @@ export async function updateRoom(ctx: TenantContext, id: string, raw: RoomInput)
         ...data,
         rent: data.rent ?? null,
         description: data.description ?? null,
+        bedrooms: data.bedrooms ?? null,
+        bathrooms: data.bathrooms ?? null,
+        areaSqft: data.areaSqft ?? null,
         // Occupancy statuses are derived; only manual statuses are taken from input.
         status:
           data.status && ["MAINTENANCE", "INACTIVE", "RESERVED"].includes(data.status)
@@ -374,7 +396,7 @@ export async function listBeds(ctx: TenantContext, filters: BedFilters = {}) {
       take,
       orderBy: [{ hostel: { name: "asc" } }, { room: { roomNumber: "asc" } }, { bedNumber: "asc" }],
       include: {
-        hostel: { select: { id: true, name: true } },
+        hostel: { select: { id: true, name: true, rentalMode: true } },
         room: { select: { id: true, roomNumber: true, rent: true, floor: { select: { name: true } } } },
         assignments: {
           where: { status: { in: ["ACTIVE", "RESERVED"] } },
@@ -519,6 +541,7 @@ export async function listAvailableBeds(ctx: TenantContext, hostelId: string) {
     },
     orderBy: [{ room: { floor: { floorNumber: "asc" } } }, { room: { roomNumber: "asc" } }, { bedNumber: "asc" }],
     include: {
+      hostel: { select: { rentalMode: true } },
       room: {
         select: { id: true, roomNumber: true, roomType: true, rent: true, floor: { select: { id: true, name: true } } },
       },

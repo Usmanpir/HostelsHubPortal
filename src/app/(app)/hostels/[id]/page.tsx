@@ -16,6 +16,7 @@ import { loadOr404 } from "@/lib/page-helpers";
 import { getHostel } from "@/services/hostel/hostel-service";
 import { formatMoney } from "@/lib/format";
 import { hostelGenderLabels, hostelStatusLabels, hostelStatusTones, hostelTypeLabels, staffTypeLabels } from "@/config/labels";
+import { PROPERTY_KIND_LABELS, RENTAL_MODE_LABELS, termsFor } from "@/lib/terms";
 import { archiveHostelAction, restoreHostelAction } from "../actions";
 
 export default async function HostelDetailPage({ params }: PageProps<"/hostels/[id]">) {
@@ -26,7 +27,18 @@ export default async function HostelDetailPage({ params }: PageProps<"/hostels/[
   const canManageRooms = can(ctx, "rooms.manage");
   const money = (n: number | null) => (n === null ? "—" : formatMoney(n, ctx.organization.currency));
   const archived = hostel.status === "ARCHIVED";
-  const floorOptions = hostel.floors.map((f) => ({ id: f.id, name: f.name, hostelId: hostel.id, hostelName: hostel.name }));
+  const floorOptions = hostel.floors.map((f) => ({
+    id: f.id,
+    name: f.name,
+    hostelId: hostel.id,
+    hostelName: hostel.name,
+    rentalMode: hostel.rentalMode,
+  }));
+  const t = termsFor(ctx.organization.businessType);
+  const whole = hostel.rentalMode === "WHOLE_UNIT";
+  const unit = whole ? "Unit" : t.unit;
+  const units = whole ? "Units" : t.units;
+  const property = t.property.toLowerCase();
 
   return (
     <>
@@ -40,8 +52,13 @@ export default async function HostelDetailPage({ params }: PageProps<"/hostels/[
         description={
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span className="font-mono text-xs">{hostel.code}</span>
-            <span>{hostelTypeLabels[hostel.type]}</span>
-            <span>{hostelGenderLabels[hostel.gender]} residents</span>
+            {hostel.kind !== "HOSTEL" ? <span>{PROPERTY_KIND_LABELS[hostel.kind]}</span> : null}
+            {whole ? null : <span>{hostelTypeLabels[hostel.type]}</span>}
+            {whole ? null : (
+              <span>
+                {hostelGenderLabels[hostel.gender]} {t.residents.toLowerCase()}
+              </span>
+            )}
             {hostel.city ? (
               <span className="inline-flex items-center gap-1">
                 <MapPin className="size-3.5" />
@@ -50,14 +67,14 @@ export default async function HostelDetailPage({ params }: PageProps<"/hostels/[
             ) : null}
           </span>
         }
-        breadcrumbs={[{ label: "Hostels", href: "/hostels" }, { label: hostel.name }]}
+        breadcrumbs={[{ label: t.properties, href: "/hostels" }, { label: hostel.name }]}
         actions={
           <>
             {can(ctx, "rooms.view") ? (
               <Button asChild variant="outline">
                 <Link href={`/hostels/map?hostel=${hostel.id}`}>
                   <LayoutGrid />
-                  Room map
+                  {unit} map
                 </Link>
               </Button>
             ) : null}
@@ -78,7 +95,7 @@ export default async function HostelDetailPage({ params }: PageProps<"/hostels/[
                       Restore
                     </Button>
                   }
-                  title="Restore this hostel?"
+                  title={`Restore this ${property}?`}
                   confirmLabel="Restore"
                   action={restoreHostelAction.bind(null, hostel.id)}
                 />
@@ -91,7 +108,7 @@ export default async function HostelDetailPage({ params }: PageProps<"/hostels/[
                     </Button>
                   }
                   title={`Archive ${hostel.name}?`}
-                  description="Archived hostels are hidden from day-to-day screens but stay in reports and history. Residents must be checked out first."
+                  description={`Archived ${t.properties.toLowerCase()} are hidden from day-to-day screens but stay in reports and history. ${t.residents} must be ${t.checkedOut.toLowerCase()} first.`}
                   confirmLabel="Archive"
                   destructive
                   action={archiveHostelAction.bind(null, hostel.id)}
@@ -104,9 +121,13 @@ export default async function HostelDetailPage({ params }: PageProps<"/hostels/[
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Floors" value={hostel.floors.length} icon={Layers} />
-        <StatCard label="Rooms" value={hostel.floors.reduce((s, f) => s + f._count.rooms, 0)} icon={DoorOpen} href={`/hostels/rooms`} />
-        <StatCard label="Beds" value={hostel.occupancy.totalBeds} icon={BedDouble} hint={`${hostel.occupancy.availableBeds} available`} href={`/hostels/map?hostel=${hostel.id}`} />
-        <StatCard label="Active residents" value={hostel.activeResidents} icon={Users} tone="info" />
+        <StatCard label={units} value={hostel.floors.reduce((s, f) => s + f._count.rooms, 0)} icon={DoorOpen} href={`/hostels/rooms`} />
+        {whole ? (
+          <StatCard label="Vacant units" value={hostel.occupancy.availableBeds} icon={DoorOpen} tone="success" href={`/hostels/map?hostel=${hostel.id}`} />
+        ) : (
+          <StatCard label="Beds" value={hostel.occupancy.totalBeds} icon={BedDouble} hint={`${hostel.occupancy.availableBeds} available`} href={`/hostels/map?hostel=${hostel.id}`} />
+        )}
+        <StatCard label={`Active ${t.residents.toLowerCase()}`} value={hostel.activeResidents} icon={Users} tone="info" />
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
@@ -126,7 +147,7 @@ export default async function HostelDetailPage({ params }: PageProps<"/hostels/[
                       trigger={
                         <Button size="sm" variant="outline">
                           <Plus />
-                          Room
+                          {unit}
                         </Button>
                       }
                     />
@@ -149,7 +170,7 @@ export default async function HostelDetailPage({ params }: PageProps<"/hostels/[
                 <EmptyState
                   icon={Layers}
                   title="No floors yet"
-                  description="Add a floor, then create rooms and beds on it."
+                  description={whole ? "Add a floor, then create units on it." : `Add a floor, then create ${t.units.toLowerCase()} and beds on it.`}
                   className="border-0 py-8"
                 />
               </div>
@@ -163,7 +184,7 @@ export default async function HostelDetailPage({ params }: PageProps<"/hostels/[
                       {f.description ? <p className="truncate text-xs text-muted-foreground">{f.description}</p> : null}
                     </div>
                     <Link href={`/hostels/rooms?floorId=${f.id}`} className="text-sm text-muted-foreground hover:text-primary">
-                      {f._count.rooms} room{f._count.rooms === 1 ? "" : "s"}
+                      {f._count.rooms} {(f._count.rooms === 1 ? unit : units).toLowerCase()}
                     </Link>
                   </li>
                 ))}
@@ -202,6 +223,34 @@ export default async function HostelDetailPage({ params }: PageProps<"/hostels/[
                 </div>
               ) : null}
               <div>
+                <dt className="text-xs text-muted-foreground">Rental mode</dt>
+                <dd>{RENTAL_MODE_LABELS[hostel.rentalMode]}</dd>
+              </div>
+              {ctx.organization.ownersEnabled || hostel.owner ? (
+                <div>
+                  <dt className="text-xs text-muted-foreground">Owner</dt>
+                  <dd>
+                    {hostel.owner ? (
+                      ctx.organization.ownersEnabled ? (
+                        <Link href={`/owners/${hostel.owner.id}`} className="hover:text-primary">
+                          {hostel.owner.name}
+                        </Link>
+                      ) : (
+                        hostel.owner.name
+                      )
+                    ) : (
+                      "Managed for ourselves"
+                    )}
+                    {hostel.owner ? (
+                      <span className="text-muted-foreground">
+                        {" "}
+                        · {hostel.managementFeePercent ?? hostel.owner.commissionPercent}% fee
+                      </span>
+                    ) : null}
+                  </dd>
+                </div>
+              ) : null}
+              <div>
                 <dt className="text-xs text-muted-foreground">Manager</dt>
                 <dd>{hostel.manager ? `${hostel.manager.firstName} ${hostel.manager.lastName}` : "Not assigned"}</dd>
               </div>
@@ -212,17 +261,19 @@ export default async function HostelDetailPage({ params }: PageProps<"/hostels/[
             <h2 className="mb-3 text-sm font-semibold">Rent configuration</h2>
             <dl className="grid grid-cols-2 gap-3 text-sm">
               <div>
-                <dt className="text-xs text-muted-foreground">Bed rent</dt>
+                <dt className="text-xs text-muted-foreground">{whole ? "Unit rent" : "Bed rent"}</dt>
                 <dd className="tabular">{money(hostel.defaultBedRent)}</dd>
               </div>
               <div>
                 <dt className="text-xs text-muted-foreground">Deposit</dt>
                 <dd className="tabular">{money(hostel.defaultDeposit)}</dd>
               </div>
-              <div>
-                <dt className="text-xs text-muted-foreground">Admission fee</dt>
-                <dd className="tabular">{money(hostel.admissionFee)}</dd>
-              </div>
+              {whole ? null : (
+                <div>
+                  <dt className="text-xs text-muted-foreground">Admission fee</dt>
+                  <dd className="tabular">{money(hostel.admissionFee)}</dd>
+                </div>
+              )}
               <div>
                 <dt className="text-xs text-muted-foreground">Rent due</dt>
                 <dd>Day {hostel.rentDueDay}</dd>
@@ -261,7 +312,7 @@ export default async function HostelDetailPage({ params }: PageProps<"/hostels/[
               ) : null}
             </div>
             {hostel.staffAssignments.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No staff assigned to this hostel.</p>
+              <p className="text-sm text-muted-foreground">No staff assigned to this {property}.</p>
             ) : (
               <ul className="grid gap-2">
                 {hostel.staffAssignments.map(({ staff }) => (

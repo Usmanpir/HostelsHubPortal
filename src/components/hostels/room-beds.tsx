@@ -33,25 +33,39 @@ type RoomBed = {
 export function RoomBeds({
   room,
 }: {
-  room: { id: string; roomNumber: string; capacity: number; rent: number | null; hostelName: string; beds: RoomBed[] };
+  room: {
+    id: string;
+    roomNumber: string;
+    capacity: number;
+    rent: number | null;
+    hostelName: string;
+    beds: RoomBed[];
+    /** Whole-unit rental: show the unit's occupancy, not beds. */
+    wholeUnit?: boolean;
+  };
 }) {
   const [selected, setSelected] = useState<BedDetail | null>(null);
   const can = useCan();
-  const canAdd = can("rooms.manage") && room.beds.length < room.capacity;
+  const whole = !!room.wholeUnit;
+  const canAdd = !whole && can("rooms.manage") && room.beds.length < room.capacity;
 
   return (
     <section className="rounded-xl border bg-card">
       <header className="flex items-center justify-between border-b px-4 py-3">
         <div>
-          <h2 className="text-sm font-semibold">Beds</h2>
+          <h2 className="text-sm font-semibold">{whole ? "Occupancy" : "Beds"}</h2>
           <p className="text-xs text-muted-foreground">
-            {room.beds.length} of {room.capacity} beds configured · click a bed for details
+            {whole
+              ? "Click the unit to see its tenant or change availability"
+              : `${room.beds.length} of ${room.capacity} beds configured · click a bed for details`}
           </p>
         </div>
         {canAdd ? <AddBedDialog roomId={room.id} nextNumber={String(room.beds.length + 1)} /> : null}
       </header>
       {room.beds.length === 0 ? (
-        <p className="px-4 py-10 text-center text-sm text-muted-foreground">No beds in this room yet.</p>
+        <p className="px-4 py-10 text-center text-sm text-muted-foreground">
+          {whole ? "This unit is not set up for leasing yet." : "No beds in this room yet."}
+        </p>
       ) : (
         <div className="grid grid-cols-2 gap-2 p-4 sm:grid-cols-3 lg:grid-cols-4">
           {room.beds.map((bed) => {
@@ -59,7 +73,13 @@ export function RoomBeds({
             return (
               <BedTile
                 key={bed.id}
-                bed={{ id: bed.id, bedNumber: bed.bedNumber, status: bed.status, residentName: a ? `${a.resident.firstName} ${a.resident.lastName}` : null }}
+                bed={{
+                  id: bed.id,
+                  bedNumber: bed.bedNumber,
+                  status: bed.status,
+                  label: whole ? `Unit ${room.roomNumber}` : undefined,
+                  residentName: a ? `${a.resident.firstName} ${a.resident.lastName}` : null,
+                }}
                 onClick={() =>
                   setSelected({
                     id: bed.id,
@@ -71,6 +91,7 @@ export function RoomBeds({
                     roomNumber: room.roomNumber,
                     roomRent: room.rent,
                     hostelName: room.hostelName,
+                    wholeUnit: whole,
                     assignment: a,
                   })
                 }

@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useFormatters } from "@/components/shared/org-context";
+import { useFormatters, useTerms } from "@/components/shared/org-context";
+import type { RentalMode } from "@/generated/prisma/enums";
 import { roomTypeLabels } from "@/config/labels";
 import { cn } from "@/lib/utils";
 import type { getHostelBedMap } from "@/services/resident/assignment-service";
@@ -28,7 +29,21 @@ export type AssignableHostel = {
   defaultDeposit: number | null;
   admissionFee: number | null;
   availableBeds: number;
+  rentalMode?: RentalMode;
 };
+
+/** Whole-unit property: each unit has a single bed that stands for the whole unit. */
+export function isWholeUnitMap(map: HostelBedMap | null | undefined) {
+  return map?.hostel.rentalMode === "WHOLE_UNIT";
+}
+
+/** Human label for a picked bed: "Ground · Room 101 · Bed 2" or "Ground · Unit 101". */
+export function pickedLabel(map: HostelBedMap | null, picked: ReturnType<typeof findBed>, unitWord = "Room") {
+  if (!picked) return "—";
+  return isWholeUnitMap(map)
+    ? `${picked.floor.name} · Unit ${picked.room.roomNumber}`
+    : `${picked.floor.name} · ${unitWord} ${picked.room.roomNumber} · Bed ${picked.bed.bedNumber}`;
+}
 
 /** Load (and cache per hostel) the bed map used by the check-in wizard and transfer dialog. */
 export function useHostelBedMap(hostelId: string | null, onLoaded?: (map: HostelBedMap) => void) {
@@ -85,10 +100,11 @@ export function findBed(map: HostelBedMap | null, bedId: string) {
 }
 
 export function MapState({ failed, onRetry }: { failed: boolean; onRetry: () => void }) {
+  const t = useTerms();
   if (failed) {
     return (
       <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-        <p>We couldn&apos;t load the beds for this hostel.</p>
+        <p>We couldn&apos;t load the {t.property === "Hostel" ? "beds" : "units"} for this {t.property.toLowerCase()}.</p>
         <Button variant="outline" size="sm" onClick={onRetry}>
           <RotateCcw />
           Try again
@@ -119,12 +135,13 @@ export function HostelSelect({
   value: string | null;
   onChange: (id: string) => void;
 }) {
+  const t = useTerms();
   return (
     <div className="grid gap-2">
-      <Label htmlFor="bed-picker-hostel">Hostel</Label>
+      <Label htmlFor="bed-picker-hostel">{t.property}</Label>
       <Select value={value ?? ""} onValueChange={onChange}>
         <SelectTrigger id="bed-picker-hostel" className="h-11 w-full data-[size=default]:h-11">
-          <SelectValue placeholder="Choose a hostel" />
+          <SelectValue placeholder={`Choose a ${t.property.toLowerCase()}`} />
         </SelectTrigger>
         <SelectContent>
           {hostels.map((h) => (
@@ -159,8 +176,14 @@ export function BedMapPicker({
   onChange: (bed: MapBed) => void;
 }) {
   const fmt = useFormatters();
+  const t = useTerms();
+  const whole = isWholeUnitMap(map);
   if (map.floors.length === 0) {
-    return <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">This hostel has no floors yet.</p>;
+    return (
+      <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+        This {t.property.toLowerCase()} has no floors yet.
+      </p>
+    );
   }
   const floor = map.floors.find((f) => f.id === floorId) ?? map.floors.find((f) => f.availableBeds > 0) ?? map.floors[0]!;
   const selected = value ? findBed(map, value) : null;
@@ -193,7 +216,24 @@ export function BedMapPicker({
       ) : null}
 
       {floor.rooms.length === 0 ? (
-        <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">No rooms on this floor.</p>
+        <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+          No {(whole ? "units" : t.units).toLowerCase()} on this floor.
+        </p>
+      ) : whole ? (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {floor.rooms.map((r) => {
+            const b = r.beds[0];
+            if (!b) return null;
+            return (
+              <div key={r.id} className="flex flex-col gap-1">
+                <SelectableBed bed={b} selected={value === b.id} onSelect={onChange} label={`Unit ${r.roomNumber}`} />
+                <span className="truncate px-1 text-xs text-muted-foreground">
+                  {r.blockedReason ?? `${roomTypeLabels[r.roomType]} · ${fmt.money(b.rent)}`}
+                </span>
+              </div>
+            );
+          })}
+        </div>
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
           {floor.rooms.map((r) => {
@@ -207,7 +247,7 @@ export function BedMapPicker({
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <span className="flex items-center gap-1.5 text-sm font-medium">
                     <DoorOpen className="size-4 text-muted-foreground" />
-                    Room {r.roomNumber}
+                    {t.unit} {r.roomNumber}
                   </span>
                   <span className="truncate text-xs text-muted-foreground">
                     {r.blockedReason ??
@@ -232,9 +272,11 @@ export function BedMapPicker({
       <p className="text-sm text-muted-foreground" aria-live="polite">
         {selected ? (
           <>
-            Selected: {selected.floor.name} · Room {selected.room.roomNumber} · Bed {selected.bed.bedNumber} ·{" "}
+            Selected: {pickedLabel(map, selected, t.unit)} ·{" "}
             <span className="tabular font-medium text-foreground">{fmt.money(selected.bed.rent)}</span> / month
           </>
+        ) : whole ? (
+          "Tap a green unit to select it."
         ) : (
           "Tap a green bed to select it."
         )}
@@ -243,7 +285,17 @@ export function BedMapPicker({
   );
 }
 
-function SelectableBed({ bed, selected, onSelect }: { bed: MapBed; selected: boolean; onSelect: (bed: MapBed) => void }) {
+function SelectableBed({
+  bed,
+  selected,
+  onSelect,
+  label,
+}: {
+  bed: MapBed;
+  selected: boolean;
+  onSelect: (bed: MapBed) => void;
+  label?: string;
+}) {
   return (
     <div
       className={cn(
@@ -254,7 +306,7 @@ function SelectableBed({ bed, selected, onSelect }: { bed: MapBed; selected: boo
       aria-disabled={!bed.selectable}
     >
       <BedTile
-        bed={{ id: bed.id, bedNumber: bed.bedNumber, status: bed.status, residentName: bed.residentName }}
+        bed={{ id: bed.id, bedNumber: bed.bedNumber, status: bed.status, residentName: bed.residentName, label }}
         onClick={bed.selectable ? () => onSelect(bed) : undefined}
       />
     </div>

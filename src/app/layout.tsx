@@ -8,8 +8,8 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: { default: `${APP_NAME} — Multi-hostel management`, template: `%s · ${APP_NAME}` },
-  description: "Manage all your hostels from one powerful platform: rooms, beds, residents, staff, billing and reports.",
+  title: { default: `${APP_NAME} — Hostel, rental & real estate management`, template: `%s · ${APP_NAME}` },
+  description: "Manage hostels, rentals and real estate from one platform: beds, leases, residents and tenants, owners, listings and leads, staff, billing and reports.",
 };
 
 export const viewport: Viewport = {

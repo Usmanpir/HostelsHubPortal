@@ -1,8 +1,11 @@
 import "server-only";
 import { prisma } from "@/lib/db/prisma";
 import { audit } from "@/lib/audit";
-import { BusinessRuleError, ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
-import { actorOf, loadTenantContext, requirePermission, type TenantContext } from "@/lib/tenant/context";
+import { BusinessRuleError, ConflictError, ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
+import { accessWhere, actorOf, loadTenantContext, requirePermission, type TenantContext } from "@/lib/tenant/context";
+import { assertWithinLimit } from "@/lib/subscription/limits";
+import type { BusinessType, RentalMode } from "@/generated/prisma/enums";
+import { termsFor } from "@/lib/terms";
 import { parseInput } from "@/lib/validation/parse";
 import { serialize } from "@/lib/serialize";
 import { OWNER_ROLE_KEY } from "@/lib/permissions/roles";
@@ -11,8 +14,10 @@ import { TRIAL_PLAN_KEY } from "@/config/plans";
 import {
   onboardingFloorsSchema,
   onboardingOrganizationSchema,
+  onboardingUnitsSchema,
   type OnboardingFloorsInput,
   type OnboardingOrganizationInput,
+  type OnboardingUnitsInput,
 } from "@/lib/validation/auth";
 import { createFloor, createBed, getRoom, updateRoom } from "@/services/hostel/structure-service";
 import type { RequestMeta } from "./auth-service";
@@ -32,6 +37,74 @@ export const ONBOARDING_STEPS = [
   { key: "complete", title: "Finish", optional: false },
 ] as const;
 export const TOTAL_STEPS = ONBOARDING_STEPS.length;
+
+/**
+ * Step list worded for the organization's business and the first property's
+ * rental mode. Hostels keep the original titles; whole-unit properties talk
+ * about units, and the beds step becomes a quick review (one bed per unit is
+ * created automatically).
+ */
+export function onboardingStepsFor(businessType: BusinessType | null | undefined, rentalMode: RentalMode | null | undefined) {
+  const wholeUnit = rentalMode === "WHOLE_UNIT";
+  if ((!businessType || businessType === "HOSTELS") && !wholeUnit) return ONBOARDING_STEPS;
+  const terms = termsFor(businessType);
+  return ONBOARDING_STEPS.map((step) => {
+    switch (step.key) {
+      case "hostel":
+        return { ...step, title: `First ${terms.property.toLowerCase()}` };
+      case "rooms":
+        return { ...step, title: wholeUnit ? "Units" : terms.units };
+      case "beds":
+        return { ...step, title: wholeUnit ? "Review units" : "Beds" };
+      default:
+        return step;
+    }
+  });
+}
+
+/**
+ * Organization flags implied by the business type chosen in step 1:
+ * real-estate agencies (and mixed portfolios) get the dealer module; property
+ * managers (and mixed portfolios) can manage on behalf of owners (default on).
+ */
+export function businessProfileFor(businessType: BusinessType, ownersEnabled?: boolean) {
+  const managesForOwners = businessType === "PROPERTY_MANAGEMENT" || businessType === "MIXED";
+  return {
+    businessType,
+    dealerEnabled: businessType === "REAL_ESTATE" || businessType === "MIXED",
+    ownersEnabled: managesForOwners ? (ownersEnabled ?? true) : false,
+  };
+}
+
+/** Persist the business type (and implied module flags) chosen during onboarding. */
+export async function applyOnboardingBusinessType(
+  ctx: TenantContext,
+  input: { businessType: BusinessType; ownersEnabled?: boolean },
+) {
+  assertOwner(ctx);
+  requirePermission(ctx, "settings.organization");
+  const data = businessProfileFor(input.businessType, input.ownersEnabled);
+  const before = await prisma.organization.findUniqueOrThrow({
+    where: { id: ctx.organizationId },
+    select: { businessType: true, dealerEnabled: true, ownersEnabled: true },
+  });
+  if (
+    before.businessType === data.businessType &&
+    before.dealerEnabled === data.dealerEnabled &&
+    before.ownersEnabled === data.ownersEnabled
+  ) {
+    return data;
+  }
+  await prisma.$transaction(async (tx) => {
+    await tx.organization.update({ where: { id: ctx.organizationId }, data });
+    await audit(
+      actorOf(ctx),
+      { action: "organization.business_type_set", entityType: "Organization", entityId: ctx.organizationId, before, after: data },
+      tx,
+    );
+  });
+  return data;
+}
 
 export type PublicPlan = {
   id: string;
@@ -133,6 +206,9 @@ export async function getOnboardingSnapshot(ctx: TenantContext) {
         currency: true,
         timezone: true,
         onboardingCompletedAt: true,
+        businessType: true,
+        ownersEnabled: true,
+        dealerEnabled: true,
       },
     }),
     prisma.subscription.findUnique({
@@ -148,6 +224,8 @@ export async function getOnboardingSnapshot(ctx: TenantContext) {
         code: true,
         type: true,
         gender: true,
+        kind: true,
+        rentalMode: true,
         city: true,
         defaultBedRent: true,
         defaultDeposit: true,
@@ -202,7 +280,9 @@ export async function getOnboardingSnapshot(ctx: TenantContext) {
   const bedCount = floors.reduce((n, f) => n + f.rooms.reduce((m, r) => m + r._count.beds, 0), 0);
 
   /** Furthest step the data supports; used when no ?step= is given. */
-  const resumeStep = !hostel ? 2 : floors.length === 0 ? 3 : roomCount === 0 ? 4 : 5;
+  // Whole-unit properties get their single bed per unit automatically, so skip the beds review.
+  const wholeUnit = hostel?.rentalMode === "WHOLE_UNIT";
+  const resumeStep = !hostel ? 2 : floors.length === 0 ? 3 : roomCount === 0 ? 4 : wholeUnit ? 6 : 5;
 
   return serialize({
     organization,
@@ -237,7 +317,7 @@ export type OnboardingSnapshot = Awaited<ReturnType<typeof getOnboardingSnapshot
 export async function updateOnboardingOrganization(ctx: TenantContext, raw: OnboardingOrganizationInput) {
   assertOwner(ctx);
   requirePermission(ctx, "settings.organization");
-  const { planKey, ...input } = parseInput(onboardingOrganizationSchema, raw);
+  const { planKey, businessType, ownersEnabled, ...input } = parseInput(onboardingOrganizationSchema, raw);
   const before = await prisma.organization.findUniqueOrThrow({
     where: { id: ctx.organizationId },
     select: { name: true, email: true, phone: true, city: true, country: true, currency: true, timezone: true },
@@ -282,6 +362,7 @@ export async function updateOnboardingOrganization(ctx: TenantContext, raw: Onbo
       );
     }
   });
+  await applyOnboardingBusinessType(ctx, { businessType, ownersEnabled });
 }
 
 /** Create several floors in one go; floors whose number already exists are skipped. */
@@ -303,12 +384,76 @@ export async function createOnboardingFloors(ctx: TenantContext, raw: Onboarding
 }
 
 /**
+ * Generate whole units on a floor of a WHOLE_UNIT property. Each unit is
+ * rented to one tenant, so capacity is forced to 1 and exactly one bed
+ * (bedNumber "1") is created per unit to carry the tenancy.
+ */
+export async function createOnboardingUnits(ctx: TenantContext, raw: OnboardingUnitsInput) {
+  requirePermission(ctx, "rooms.manage");
+  const input = parseInput(onboardingUnitsSchema, raw);
+  const floor = await prisma.floor.findFirst({
+    where: { id: input.floorId, ...accessWhere(ctx), archivedAt: null, hostel: { archivedAt: null } },
+    select: { id: true, hostelId: true, hostel: { select: { rentalMode: true } } },
+  });
+  if (!floor) throw new NotFoundError("Floor");
+  if (floor.hostel.rentalMode !== "WHOLE_UNIT") {
+    throw new BusinessRuleError("This property is rented by bed. Create rooms and beds instead.");
+  }
+  await assertWithinLimit(prisma, ctx.organizationId, "beds", input.count);
+  const numbers = Array.from({ length: input.count }, (_, i) => `${input.prefix}${input.startNumber + i}`);
+  const clashes = await prisma.room.findMany({
+    where: { hostelId: floor.hostelId, roomNumber: { in: numbers } },
+    select: { roomNumber: true },
+  });
+  if (clashes.length) throw new ConflictError(`These units already exist: ${clashes.map((c) => c.roomNumber).join(", ")}`);
+
+  return prisma.$transaction(async (tx) => {
+    for (const roomNumber of numbers) {
+      const room = await tx.room.create({
+        data: {
+          organizationId: ctx.organizationId,
+          hostelId: floor.hostelId,
+          floorId: floor.id,
+          roomNumber,
+          roomType: input.roomType,
+          capacity: 1,
+          rent: input.rent ?? null,
+          bedrooms: input.bedrooms ?? null,
+          bathrooms: input.bathrooms ?? null,
+          areaSqft: input.areaSqft ?? null,
+          furnished: input.furnished,
+        },
+      });
+      await tx.bed.create({
+        data: { organizationId: ctx.organizationId, hostelId: floor.hostelId, roomId: room.id, bedNumber: "1" },
+      });
+    }
+    await audit(
+      actorOf(ctx),
+      {
+        action: "room.bulk_created",
+        entityType: "Floor",
+        entityId: floor.id,
+        after: { rooms: numbers, capacity: 1, roomType: input.roomType, wholeUnit: true },
+      },
+      tx,
+    );
+    return { created: numbers.length };
+  });
+}
+
+/**
  * Add one bed to a room from the review step, raising the room's capacity
  * first when it is already full.
  */
 export async function addBedToRoom(ctx: TenantContext, roomId: string) {
   requirePermission(ctx, "rooms.manage");
   const room = await getRoom(ctx, roomId);
+  const hostel = await prisma.hostel.findFirst({
+    where: { id: room.hostelId, organizationId: ctx.organizationId },
+    select: { rentalMode: true },
+  });
+  if (hostel?.rentalMode === "WHOLE_UNIT") throw new BusinessRuleError("Whole units are rented to one tenant and keep a single bed.");
   if (room.beds.length >= 50) throw new BusinessRuleError("A room can have at most 50 beds.");
   if (room.beds.length >= room.capacity) {
     await updateRoom(ctx, room.id, {

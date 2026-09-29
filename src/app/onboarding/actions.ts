@@ -12,6 +12,7 @@ import {
   onboardingOrganizationSchema,
   type OnboardingFloorsInput,
   type OnboardingOrganizationInput,
+  type OnboardingUnitsInput,
   type StaffInviteInput,
 } from "@/lib/validation/auth";
 import { createOrganizationForUser } from "@/services/organization/organization-service";
@@ -20,8 +21,10 @@ import { createHostel, updateHostel } from "@/services/hostel/hostel-service";
 import { bulkCreateRooms } from "@/services/hostel/structure-service";
 import {
   addBedToRoom,
+  applyOnboardingBusinessType,
   completeOnboarding,
   createOnboardingFloors,
+  createOnboardingUnits,
   getOnboardingStatus,
   loadOnboardingContext,
   updateOnboardingOrganization,
@@ -57,12 +60,16 @@ export async function saveOrganizationAction(raw: OnboardingOrganizationInput) {
     if (status.completed || status.hasMembership) {
       throw new BusinessRuleError("You already belong to an organization. Open your dashboard to continue.");
     }
-    const { planKey, ...profile } = parseInput(onboardingOrganizationSchema, raw);
+    const { planKey, businessType, ownersEnabled, ...profile } = parseInput(onboardingOrganizationSchema, raw);
     const plan = await prisma.plan.findFirst({ where: { key: planKey, isActive: true, isPublic: true }, select: { key: true } });
     if (!plan) throw new ValidationError("Choose an available plan.", { planKey: ["Choose an available plan"] });
 
     const organization = await createOrganizationForUser(prisma, user.id, profile, { planKey: plan.key, ipAddress: meta.ipAddress });
     await setActiveOrganizationCookie(organization.id);
+    if (businessType !== "HOSTELS") {
+      const ctx = await loadOnboardingContext(user.id, meta);
+      if (ctx) await applyOnboardingBusinessType(ctx, { businessType, ownersEnabled });
+    }
     done();
     return { organizationId: organization.id };
   }, "Organization saved");
@@ -91,6 +98,15 @@ export async function createFloorsAction(input: OnboardingFloorsInput) {
 export async function bulkRoomsAction(input: BulkRoomsInput) {
   return runAction(async () => {
     const result = await bulkCreateRooms(await onboardingContext(), input);
+    done();
+    return result;
+  });
+}
+
+/** Step 4 (whole-unit properties) — generate units, each with its single bed. */
+export async function createUnitsAction(input: OnboardingUnitsInput) {
+  return runAction(async () => {
+    const result = await createOnboardingUnits(await onboardingContext(), input);
     done();
     return result;
   });

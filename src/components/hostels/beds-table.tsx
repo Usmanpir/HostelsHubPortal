@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { DataTable, type Column, type FilterDef } from "@/components/data-table/data-table";
 import { EnumBadge } from "@/components/shared/status-badge";
-import { useFormatters } from "@/components/shared/org-context";
+import { useFormatters, useTerms } from "@/components/shared/org-context";
 import { bedStatusLabels, bedStatusTones } from "@/config/labels";
 import type { AssignmentStatus, BedStatus } from "@/generated/prisma/enums";
 import type { Paginated } from "@/lib/validation/common";
@@ -20,6 +20,7 @@ export type BedRow = {
 
 export function BedsTable({ data, filters }: { data: Paginated<BedRow>; filters: FilterDef[] }) {
   const fmt = useFormatters();
+  const t = useTerms();
   const columns: Column<BedRow>[] = [
     {
       id: "bed",
@@ -27,15 +28,15 @@ export function BedsTable({ data, filters }: { data: Paginated<BedRow>; filters:
       hideable: false,
       cell: (b) => (
         <Link href={`/hostels/rooms/${b.room.id}`} className="font-medium hover:text-primary">
-          Room {b.room.roomNumber} · Bed {b.bedNumber}
+          {t.unit} {b.room.roomNumber} · Bed {b.bedNumber}
         </Link>
       ),
     },
-    { id: "hostel", header: "Hostel", cell: (b) => b.hostel.name },
+    { id: "hostel", header: t.property, cell: (b) => b.hostel.name },
     { id: "floor", header: "Floor", cell: (b) => b.room.floor.name },
     {
       id: "resident",
-      header: "Resident",
+      header: t.resident,
       cell: (b) => {
         const a = b.assignments[0];
         return a ? (
@@ -68,7 +69,7 @@ export function BedsTable({ data, filters }: { data: Paginated<BedRow>; filters:
       pageCount={data.pageCount}
       pageSize={data.pageSize}
       rowHref={(b) => `/hostels/rooms/${b.room.id}`}
-      searchPlaceholder="Search room or bed number"
+      searchPlaceholder={`Search ${t.unit.toLowerCase()} or bed number`}
       filters={filters}
       storageKey="beds"
     />

@@ -30,6 +30,7 @@ import { createComplaint, updateComplaintStatus } from "@/services/operations/co
 import { checkInVisitor, checkOutVisitor } from "@/services/operations/visitor-service";
 import { createAnnouncement } from "@/services/operations/announcement-service";
 import { todayInTimeZone } from "@/lib/format";
+import { seedPropertyDemo } from "./seed-property-demo";
 
 const PASSWORD = "Demo@12345";
 const TZ = "Asia/Karachi";
@@ -78,7 +79,8 @@ async function main() {
   await ensurePlans(prisma);
 
   if (await prisma.user.findUnique({ where: { email: "owner@demo-hostels.dev" } })) {
-    console.log("Demo data already present — nothing to do. Reset your dev database to reseed.");
+    console.log("Hostel demo data already present — skipping it.");
+    await seedPropertyDemo();
     return;
   }
 
@@ -390,6 +392,7 @@ async function main() {
   await bulkCreateRooms(otherCtx, { floorId: lhrFloor.id, startNumber: 1, count: 2, capacity: 2, rent: 14000 });
   await createResident(otherCtx, { hostelId: lhr.id, firstName: "Private", lastName: "Resident", phone: "+92 300 9999999", joiningDate: monthStart(-1) });
 
+  await seedPropertyDemo();
   console.log(`\n✓ Seed complete. Sign in with any demo account (password: ${PASSWORD}) — see README.md.`);
 }
 

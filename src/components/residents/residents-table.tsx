@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { DataTable, type BulkAction, type Column, type FilterDef } from "@/components/data-table/data-table";
 import { EnumBadge, StatusBadge } from "@/components/shared/status-badge";
-import { useCan, useFormatters } from "@/components/shared/org-context";
+import { useCan, useFormatters, useTerms } from "@/components/shared/org-context";
 import { assignmentStatusLabels, residentStatusLabels, residentStatusTones } from "@/config/labels";
 import { cn } from "@/lib/utils";
 import type { listResidents } from "@/services/resident/resident-service";
@@ -41,6 +41,7 @@ export function ResidentsTable({
   const fmt = useFormatters();
   const can = useCan();
   const router = useRouter();
+  const terms = useTerms();
   const [, startTransition] = useTransition();
   const canManage = can("residents.manage");
   const canAssign = can("assignments.manage");
@@ -72,10 +73,10 @@ export function ResidentsTable({
         </a>
       ),
     },
-    ...(showHostel ? [{ id: "hostel", header: "Hostel", sortKey: "hostel", cell: (r: ResidentRow) => r.hostel.name }] : []),
+    ...(showHostel ? [{ id: "hostel", header: terms.property, sortKey: "hostel", cell: (r: ResidentRow) => r.hostel.name }] : []),
     {
       id: "room",
-      header: "Room",
+      header: terms.unit,
       cell: (r) =>
         r.stay ? (
           <span className="whitespace-nowrap">
@@ -86,7 +87,7 @@ export function ResidentsTable({
           <span className="text-muted-foreground">—</span>
         ),
     },
-    { id: "bed", header: "Bed", cell: (r) => (r.stay ? r.stay.bed.bedNumber : <span className="text-muted-foreground">—</span>) },
+    { id: "bed", header: "Bed", defaultHidden: terms.property !== "Hostel", cell: (r) => (r.stay ? r.stay.bed.bedNumber : <span className="text-muted-foreground">—</span>) },
     {
       id: "rent",
       header: "Rent",
