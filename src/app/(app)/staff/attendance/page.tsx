@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CalendarCheck, CalendarX2, Plane, UserCheck, UsersRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shared/page-header";
+import { SectionTabs } from "@/components/layout/section-tabs";
 import { EmptyState } from "@/components/shared/empty-state";
 import { StatCard } from "@/components/shared/stat-card";
 import { ExportMenu } from "@/components/data-table/export-menu";
@@ -87,6 +88,7 @@ export default async function AttendancePage({ searchParams }: PageProps<"/staff
           breadcrumbs={[{ label: "Staff", href: "/staff" }, { label: "Attendance" }]}
           actions={<ExportMenu endpoint="/api/attendance/export" extraParams={{ month: date.slice(0, 7) }} />}
         />
+        <SectionTabs group="attendanceLeave" />
         <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           {toggle}
           <DayNav date={date} today={today} />
@@ -128,6 +130,7 @@ export default async function AttendancePage({ searchParams }: PageProps<"/staff
         breadcrumbs={[{ label: "Staff", href: "/staff" }, { label: "Attendance" }]}
         actions={<ExportMenu endpoint="/api/attendance/export" extraParams={{ month: monthKey(period.year, period.month) }} />}
       />
+      <SectionTabs group="attendanceLeave" />
       <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         {toggle}
         <MonthNav year={period.year} month={period.month} current={current} />

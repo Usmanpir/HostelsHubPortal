@@ -400,6 +400,7 @@ const paymentListInclude = {
   hostel: { select: { id: true, name: true } },
   invoice: { select: { id: true, invoiceNumber: true } },
   receivedBy: { select: { name: true } },
+  onlinePayment: { select: { provider: true } },
 } satisfies Prisma.PaymentInclude;
 
 type PaymentListRow = Prisma.PaymentGetPayload<{ include: typeof paymentListInclude }>;
@@ -419,6 +420,7 @@ function toPaymentRow(p: PaymentListRow) {
     hostel: p.hostel,
     invoice: p.invoice,
     receivedBy: p.receivedBy?.name ?? null,
+    onlineProvider: p.onlinePayment?.provider ?? null,
   };
 }
 
@@ -477,6 +479,7 @@ export async function getPayment(ctx: TenantContext, id: string) {
         select: { id: true, invoiceNumber: true, total: true, amountPaid: true, status: true, issueDate: true, periodStart: true, periodEnd: true },
       },
       receivedBy: { select: { name: true } },
+      onlinePayment: { select: { provider: true, txnRef: true, gatewayTxnId: true, environment: true } },
     },
   });
   if (!payment) throw new NotFoundError("Payment");

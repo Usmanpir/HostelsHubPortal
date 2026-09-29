@@ -1,6 +1,7 @@
 import { Layers, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shared/page-header";
+import { SectionTabs } from "@/components/layout/section-tabs";
 import { EmptyState } from "@/components/shared/empty-state";
 import { FloorDialog } from "@/components/hostels/floor-dialog";
 import { FloorsTable } from "@/components/hostels/floors-table";
@@ -36,6 +37,7 @@ export default async function FloorsPage() {
         breadcrumbs={[{ label: "Hostels", href: "/hostels" }, { label: "Floors" }]}
         actions={addButton}
       />
+      <SectionTabs group="roomsAndBeds" />
       {floors.length === 0 ? (
         <EmptyState
           icon={Layers}

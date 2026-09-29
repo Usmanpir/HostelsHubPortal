@@ -30,6 +30,8 @@ export type DashboardSummary = {
     occupancy: OccupancyStats;
     activeResidents: number;
     activeStaff: number;
+    /** Open + assigned + in-progress requests; null without maintenance.view. */
+    openMaintenance: number | null;
   };
   finance: DashboardFinance | null;
   outstanding: { total: number; overdue: number; invoices: number } | null;
@@ -83,12 +85,15 @@ export async function getDashboardSummary(ctx: TenantContext): Promise<Dashboard
   const canOutstanding = financial || can(ctx, "invoices.view");
   const hostelWhere: Prisma.HostelWhereInput = { organizationId: ctx.organizationId, archivedAt: null, ...(ids ? { id: { in: ids } } : {}) };
 
-  const [hostelRows, rooms, residentsOnRecord, activeResidents, activeStaff, occupancy, trend] = await Promise.all([
+  const [hostelRows, rooms, residentsOnRecord, activeResidents, activeStaff, openMaintenance, occupancy, trend] = await Promise.all([
     prisma.hostel.findMany({ where: hostelWhere, select: { id: true, name: true, code: true }, orderBy: { name: "asc" } }),
     prisma.room.count({ where: { ...where, archivedAt: null, hostel: { archivedAt: null } } }),
     prisma.resident.count({ where }),
     prisma.resident.count({ where: { ...where, status: { in: ["ACTIVE", "NOTICE"] } } }),
     prisma.staff.count({ where: { ...staffScope(ctx, { hostelId: null }), status: "ACTIVE", archivedAt: null } }),
+    can(ctx, "maintenance.view")
+      ? prisma.maintenanceRequest.count({ where: { ...where, status: { in: ["OPEN", "ASSIGNED", "IN_PROGRESS"] } } })
+      : Promise.resolve(null),
     getOccupancy(ctx),
     occupancyTrend(ctx.organizationId, ids, trendFrom, today, today),
   ]);
@@ -192,6 +197,7 @@ export async function getDashboardSummary(ctx: TenantContext): Promise<Dashboard
       occupancy: occupancy.overall,
       activeResidents,
       activeStaff,
+      openMaintenance,
     },
     finance,
     outstanding,

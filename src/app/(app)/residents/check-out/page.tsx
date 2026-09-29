@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/shared/page-header";
+import { SectionTabs } from "@/components/layout/section-tabs";
 import { CheckOutWizard } from "@/components/residents/check-out-wizard";
 import { requireTenantPage } from "@/lib/tenant/server";
 import { sp } from "@/lib/page-helpers";
@@ -31,6 +32,7 @@ export default async function CheckOutPage({ searchParams }: PageProps<"/residen
         description="Settle the stay, deposit and final charges, then free the bed."
         breadcrumbs={[{ label: "Residents", href: "/residents" }, { label: "Check out" }]}
       />
+      <SectionTabs group="checkInOut" />
       <CheckOutWizard
         key={residentId ?? ""}
         initialResident={preview ? (residents[0] ?? null) : null}

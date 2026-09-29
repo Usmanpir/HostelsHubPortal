@@ -113,7 +113,15 @@ export async function getPortalInvoice(ctx: ResidentContext, rawId: string) {
       payments: {
         where: { status: "COMPLETED" },
         orderBy: { paymentDate: "asc" },
-        select: { id: true, receiptNumber: true, paymentDate: true, amount: true, method: true, type: true },
+        select: {
+          id: true,
+          receiptNumber: true,
+          paymentDate: true,
+          amount: true,
+          method: true,
+          type: true,
+          onlinePayment: { select: { provider: true } },
+        },
       },
       hostel: { select: { name: true, address: true, city: true, phone: true, email: true } },
       resident: { select: { firstName: true, lastName: true, residentCode: true, phone: true, email: true } },

@@ -1,47 +1,27 @@
 "use client";
 
-import {
-  AlarmClock,
-  ArrowDownRight,
-  ArrowUpRight,
-  BedDouble,
-  BedSingle,
-  Building2,
-  DoorOpen,
-  HandCoins,
-  Receipt,
-  TrendingUp,
-  UserCheck,
-  Users,
-  Wrench,
-  type LucideIcon,
-} from "lucide-react";
+import { AlarmClock, ArrowDownRight, ArrowUpRight, BedDouble, Gauge, HandCoins, UserCheck, Users, Wrench, type LucideIcon } from "lucide-react";
 import { StatCard } from "@/components/shared/stat-card";
 import { useValueFormat } from "@/components/reports/use-value-format";
 import { cn } from "@/lib/utils";
 
-export type KpiIcon = "hostels" | "rooms" | "beds" | "occupied" | "available" | "maintenance" | "residents" | "staff" | "revenue" | "collected" | "outstanding" | "expenses";
+export type KpiIcon = "occupancy" | "available" | "maintenance" | "residents" | "staff" | "collected" | "outstanding";
 
 const ICONS: Record<KpiIcon, LucideIcon> = {
-  hostels: Building2,
-  rooms: DoorOpen,
-  beds: BedDouble,
-  occupied: BedSingle,
+  occupancy: Gauge,
   available: BedDouble,
   maintenance: Wrench,
   residents: Users,
   staff: UserCheck,
-  revenue: TrendingUp,
   collected: HandCoins,
   outstanding: AlarmClock,
-  expenses: Receipt,
 };
 
 export type Kpi = {
   key: string;
   label: string;
   value: number;
-  format: "money" | "number";
+  format: "money" | "number" | "percent";
   icon: KpiIcon;
   tone?: "default" | "success" | "warning" | "danger" | "info";
   href?: string;
@@ -70,7 +50,7 @@ function Delta({ delta }: { delta: NonNullable<Kpi["delta"]> }) {
 export function KpiGrid({ items, className }: { items: Kpi[]; className?: string }) {
   const fmt = useValueFormat();
   return (
-    <div className={cn("grid grid-cols-2 gap-3 sm:grid-cols-4", className)}>
+    <div className={cn("grid grid-cols-2 gap-3 lg:grid-cols-4", className)}>
       {items.map((k) => (
         <StatCard
           key={k.key}

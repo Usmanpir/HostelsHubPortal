@@ -20,6 +20,8 @@ import { RequestDialog } from "@/components/portal/request-dialog";
 import { greeting, portalFormatters } from "@/components/portal/format";
 import { requireResidentPage } from "@/lib/tenant/resident";
 import { getPortalDashboard } from "@/services/portal/dashboard-service";
+import { listAvailableGateways } from "@/services/payments/online-payment-service";
+import { PayOnlineButton } from "@/components/payments/pay-online-button";
 import {
   announcementCategoryLabels,
   announcementCategoryTones,
@@ -43,7 +45,7 @@ export const metadata = { title: "Home" };
 
 export default async function PortalHomePage() {
   const ctx = await requireResidentPage();
-  const data = await getPortalDashboard(ctx);
+  const [data, gateways] = await Promise.all([getPortalDashboard(ctx), listAvailableGateways(ctx.organizationId)]);
   const fmt = portalFormatters(ctx);
   const { assignment, balance, nextDue } = data;
   const firstName = data.resident.firstName;
@@ -161,7 +163,17 @@ export default async function PortalHomePage() {
               </div>
               <EnumBadge value={nextDue.status} labels={invoiceStatusLabels} tones={invoiceStatusTones} />
             </Link>
-          ) : (
+          ) : null}
+          {nextDue && nextDue.balance > 0 && gateways.length > 0 ? (
+            <PayOnlineButton
+              invoiceId={nextDue.id}
+              amountLabel={fmt.money(nextDue.balance)}
+              gateways={gateways}
+              label="Pay now"
+              className="mt-3 w-full"
+            />
+          ) : null}
+          {nextDue ? null : (
             <p className="mt-4 rounded-xl border border-dashed p-3 text-sm text-muted-foreground">
               You&apos;re all paid up. Nothing is due right now.
             </p>

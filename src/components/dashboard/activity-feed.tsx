@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Activity, BedDouble, CreditCard, FileText, LogIn, LogOut, MessageSquareWarning, UserPlus, Users, Wrench, IdCard, type LucideIcon } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useFormatters } from "@/components/shared/org-context";
 import { formatRelative } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -21,13 +21,22 @@ const KIND: Record<ActivityKind, { icon: LucideIcon; className: string }> = {
   other: { icon: BedDouble, className: "bg-muted text-muted-foreground" },
 };
 
-export function ActivityFeed({ items, className }: { items: ActivityItem[]; className?: string }) {
+export function ActivityFeed({ items, viewAllHref, className }: { items: ActivityItem[]; viewAllHref?: string; className?: string }) {
   const fmt = useFormatters();
   return (
     <Card className={cn("gap-3", className)}>
       <CardHeader>
         <CardTitle>Recent activity</CardTitle>
-        <CardDescription>Latest check-ins, payments, complaints and requests</CardDescription>
+        {viewAllHref ? (
+          <CardAction>
+            <Link
+              href={viewAllHref}
+              className="rounded-sm text-sm font-medium text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            >
+              View all
+            </Link>
+          </CardAction>
+        ) : null}
       </CardHeader>
       <CardContent>
         {items.length === 0 ? (
@@ -70,7 +79,7 @@ export function ActivityFeed({ items, className }: { items: ActivityItem[]; clas
               return (
                 <li key={item.id} className={cn("relative", i < items.length - 1 && "border-b")}>
                   {item.href ? (
-                    <Link href={item.href} className="-mx-2 flex gap-3 rounded-lg px-2 py-3 hover:bg-accent/40">
+                    <Link href={item.href} className="-mx-2 flex gap-3 rounded-lg px-2 py-3 hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
                       {body}
                     </Link>
                   ) : (

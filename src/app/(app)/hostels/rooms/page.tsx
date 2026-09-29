@@ -1,6 +1,7 @@
 import { DoorOpen, Plus, Rows3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shared/page-header";
+import { SectionTabs } from "@/components/layout/section-tabs";
 import { EmptyState } from "@/components/shared/empty-state";
 import { RoomsTable } from "@/components/hostels/rooms-table";
 import { BulkRoomsDialog, RoomDialog } from "@/components/hostels/room-dialog";
@@ -64,6 +65,7 @@ export default async function RoomsPage({ searchParams }: PageProps<"/hostels/ro
           ) : null
         }
       />
+      <SectionTabs group="roomsAndBeds" />
       <RoomsTable
         data={data}
         filters={[

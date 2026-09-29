@@ -5,6 +5,7 @@ import { dispatchDueAnnouncements } from "@/services/operations/announcement-ser
 import { notifyUsers } from "@/lib/notifications/notify";
 import { dateOnly, formatMoney, todayInTimeZone } from "@/lib/format";
 import { round2, toNumber } from "@/lib/serialize";
+import { reconcileOnlinePayments } from "@/services/payments/online-payment-service";
 
 const REMINDER_DAYS_BEFORE_DUE = 3;
 
@@ -14,6 +15,7 @@ const REMINDER_DAYS_BEFORE_DUE = 3;
  *  2. send RENT_DUE reminders to residents with portal accounts for invoices
  *     due in exactly N days (idempotent per invoice per day via the link key)
  *  3. purge expired rate-limit buckets
+ *  4. re-check stale PENDING online payments with the gateway and expire abandoned ones
  */
 export async function runDailyJobs() {
   const orgs = await prisma.organization.findMany({
@@ -49,5 +51,6 @@ export async function runDailyJobs() {
     }
   }
   const purged = await prisma.rateLimitBucket.deleteMany({ where: { expiresAt: { lt: new Date() } } });
-  return { organizations: orgs.length, reminders, rateLimitBucketsPurged: purged.count };
+  const onlinePayments = await reconcileOnlinePayments();
+  return { organizations: orgs.length, reminders, rateLimitBucketsPurged: purged.count, onlinePayments };
 }

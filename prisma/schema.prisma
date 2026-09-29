@@ -236,6 +236,27 @@ enum ExpenseStatus {
   VOIDED
 }
 
+// Online payment gateways an organization can connect (its own merchant accounts).
+// SIMULATOR exists only for local development and is refused in production.
+enum PaymentProvider {
+  JAZZCASH
+  EASYPAISA
+  SIMULATOR
+}
+
+enum GatewayEnvironment {
+  SANDBOX
+  LIVE
+}
+
+enum OnlinePaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+  EXPIRED
+}
+
 enum MaintenanceCategory {
   ELECTRICITY
   PLUMBING
@@ -362,6 +383,8 @@ model User {
   visitorsRecorded     Visitor[]
   leavesReviewed       StaffLeave[]
   requestsReviewed     ResidentRequest[]        @relation("RequestReviewedBy")
+  onlinePayments       OnlinePayment[]          @relation("OnlinePaymentInitiatedBy")
+  gatewayConfigsUpdated PaymentGatewayConfig[]  @relation("GatewayConfigUpdatedBy")
 }
 
 model PasswordResetToken {
@@ -472,6 +495,8 @@ model Organization {
   files             StoredFile[]         @relation("OrganizationFiles")
   sequences         Sequence[]
   featureOverrides  OrganizationFeatureFlag[]
+  gatewayConfigs    PaymentGatewayConfig[]
+  onlinePayments    OnlinePayment[]
 
   @@index([status])
 }
@@ -706,6 +731,7 @@ model Hostel {
   visitors         Visitor[]
   announcements    Announcement[]
   residentRequests ResidentRequest[]
+  onlinePayments   OnlinePayment[]
 
   @@unique([organizationId, code])
   @@index([organizationId, status])
@@ -833,6 +859,7 @@ model Resident {
   visitors      Visitor[]
   requests      ResidentRequest[]
   announcements AnnouncementRecipient[]
+  onlinePayments OnlinePayment[]
 
   @@unique([organizationId, residentCode])
   @@unique([organizationId, userId])
@@ -1114,6 +1141,7 @@ model Invoice {
   createdBy    User?               @relation(fields: [createdById], references: [id], onDelete: SetNull)
   items        InvoiceItem[]
   payments     Payment[]
+  onlinePayments OnlinePayment[]
 
   @@unique([organizationId, invoiceNumber])
   @@index([organizationId, hostelId, status])
@@ -1162,11 +1190,87 @@ model Payment {
   resident     Resident     @relation(fields: [residentId], references: [id], onDelete: Restrict)
   invoice      Invoice?     @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
   receivedBy   User?        @relation("PaymentReceivedBy", fields: [receivedById], references: [id], onDelete: SetNull)
+  onlinePayment OnlinePayment?
 
   @@unique([organizationId, receiptNumber])
   @@index([organizationId, hostelId, paymentDate])
   @@index([invoiceId])
   @@index([residentId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Online payments (resident portal → JazzCash / Easypaisa hosted checkout)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Each organization connects its own merchant account per provider. Public
+// identifiers are plain columns; every secret (password, integrity salt, hash
+// key, API credentials) lives only in `secretsEncrypted` (AES-256-GCM, see
+// src/lib/security/crypto.ts) and is never sent back to the browser.
+model PaymentGatewayConfig {
+  id               String             @id @default(cuid())
+  organizationId   String
+  provider         PaymentProvider
+  enabled          Boolean            @default(false)
+  environment      GatewayEnvironment @default(SANDBOX)
+  // JazzCash: Merchant ID · Easypaisa: Store ID
+  merchantId       String?
+  // JazzCash: optional sub-merchant · Easypaisa: optional account number for inquiry
+  subMerchantId    String?
+  // Encrypted JSON of secret fields; null until secrets are saved.
+  secretsEncrypted String?
+  // Names of the secret fields that have a stored value (for "Saved" badges).
+  secretKeys       String[]
+  lastTestedAt     DateTime?
+  lastTestOk       Boolean?
+  lastTestMessage  String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  updatedById      String?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  updatedBy    User?        @relation("GatewayConfigUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, provider])
+}
+
+model OnlinePayment {
+  id                String              @id @default(cuid())
+  organizationId    String
+  hostelId          String
+  residentId        String
+  invoiceId         String
+  provider          PaymentProvider
+  environment       GatewayEnvironment  @default(SANDBOX)
+  amount            Decimal             @db.Decimal(12, 2)
+  currency          String
+  status            OnlinePaymentStatus @default(PENDING)
+  // Reference we send to the gateway (pp_TxnRefNo / orderRefNum). Globally unique.
+  txnRef            String              @unique
+  gatewayTxnId      String?
+  responseCode      String?
+  responseMessage   String?
+  // Sanitized gateway payloads (no secrets, no hashes) for support/debugging.
+  rawResponse       Json?
+  paymentId         String?             @unique
+  initiatedByUserId String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  completedAt       DateTime?
+  expiresAt         DateTime
+  lastCheckedAt     DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  hostel       Hostel       @relation(fields: [hostelId], references: [id], onDelete: Restrict)
+  resident     Resident     @relation(fields: [residentId], references: [id], onDelete: Restrict)
+  invoice      Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  payment      Payment?     @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  initiatedBy  User?        @relation("OnlinePaymentInitiatedBy", fields: [initiatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, hostelId, status])
+  @@index([invoiceId, createdAt])
+  @@index([residentId, createdAt])
+  @@index([status, createdAt])
 }
 
 model ExpenseCategory {

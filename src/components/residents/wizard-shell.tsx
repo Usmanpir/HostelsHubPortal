@@ -94,56 +94,6 @@ export function WizardShell({
   );
 }
 
-/** Selectable card used for hostels / floors / rooms in the wizards. */
-export function ChoiceCard({
-  selected,
-  disabled,
-  onClick,
-  title,
-  subtitle,
-  meta,
-  icon,
-}: {
-  selected: boolean;
-  disabled?: boolean;
-  onClick: () => void;
-  title: React.ReactNode;
-  subtitle?: React.ReactNode;
-  meta?: React.ReactNode;
-  icon?: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      aria-pressed={selected}
-      className={cn(
-        "flex w-full items-center gap-3 rounded-xl border bg-card p-3 text-start transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
-        selected ? "border-primary bg-accent/40 ring-1 ring-primary" : "hover:border-primary/40 hover:bg-accent/20",
-        disabled && "cursor-not-allowed opacity-50 hover:border-border hover:bg-card",
-      )}
-    >
-      {icon ? (
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">{icon}</span>
-      ) : null}
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium">{title}</span>
-        {subtitle ? <span className="block truncate text-xs text-muted-foreground">{subtitle}</span> : null}
-      </span>
-      {meta ? <span className="shrink-0 text-xs text-muted-foreground">{meta}</span> : null}
-      <span
-        className={cn(
-          "flex size-5 shrink-0 items-center justify-center rounded-full border",
-          selected && "border-primary bg-primary text-primary-foreground",
-        )}
-      >
-        {selected ? <Check className="size-3" /> : null}
-      </span>
-    </button>
-  );
-}
-
 /** Label/value rows for review steps. */
 export function ReviewList({ items }: { items: { label: string; value: React.ReactNode }[] }) {
   return (

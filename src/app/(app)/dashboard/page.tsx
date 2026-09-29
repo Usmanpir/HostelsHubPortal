@@ -1,19 +1,22 @@
-import { ShieldAlert } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, ShieldAlert } from "lucide-react";
 import { ActivityFeed } from "@/components/dashboard/activity-feed";
 import { DashboardEmpty } from "@/components/dashboard/dashboard-empty";
 import { HostelOccupancyList } from "@/components/dashboard/hostel-occupancy-list";
 import { KpiGrid, type Kpi } from "@/components/dashboard/kpi-grid";
-import { OccupancyHero } from "@/components/dashboard/occupancy-hero";
 import { QuickActions } from "@/components/dashboard/quick-actions";
 import { ReportChartCard } from "@/components/reports/report-chart";
 import { requireTenantPage } from "@/lib/tenant/server";
 import { can, type TenantContext } from "@/lib/tenant/context";
 import type { Permission } from "@/lib/permissions/catalog";
 import { sp } from "@/lib/page-helpers";
+import { cn } from "@/lib/utils";
 import { getDashboardSummary, type DashboardSummary } from "@/services/dashboard/dashboard-service";
 import type { ReportChart } from "@/services/reports/types";
 
 export const metadata = { title: "Dashboard" };
+
+const ACTIVITY_LIMIT = 6;
 
 function greeting(timeZone: string) {
   let hour = 12;
@@ -33,14 +36,23 @@ function change(current: number, previous: number): number | null {
   return Math.round(((current - previous) / Math.abs(previous)) * 1000) / 10;
 }
 
-function buildKpis(ctx: TenantContext, s: DashboardSummary): { operational: Kpi[]; financial: Kpi[] } {
+/** Exactly four headline figures; financial ones replace operational ones when permitted. */
+function buildKpis(ctx: TenantContext, s: DashboardSummary): Kpi[] {
   const link = (perm: Permission, href: string) => (can(ctx, perm) ? href : undefined);
   const o = s.kpis.occupancy;
-  const operational: Kpi[] = [
-    { key: "hostels", label: "Hostels", value: s.kpis.hostels, format: "number", icon: "hostels", href: link("hostels.view", "/hostels") },
-    { key: "rooms", label: "Rooms", value: s.kpis.rooms, format: "number", icon: "rooms", href: link("rooms.view", "/hostels/rooms") },
-    { key: "beds", label: "Total beds", value: o.totalBeds, format: "number", icon: "beds", href: link("rooms.view", "/hostels/beds") },
-    { key: "occupied", label: "Occupied beds", value: o.occupiedBeds, format: "number", icon: "occupied", tone: "info", href: link("rooms.view", "/hostels/map") },
+  const usable = o.totalBeds - o.maintenanceBeds - o.inactiveBeds;
+  const kpis: Kpi[] = [
+    {
+      key: "occupancy",
+      label: "Occupancy",
+      value: o.occupancyRate,
+      format: "percent",
+      icon: "occupancy",
+      tone: "info",
+      href: link("reports.view", "/reports/occupancy") ?? link("rooms.view", "/hostels/map"),
+      // The rate excludes beds out of service, so say so when the denominators differ.
+      hint: usable === o.totalBeds ? `${o.occupiedBeds.toLocaleString()} of ${o.totalBeds.toLocaleString()} beds occupied` : `${o.occupiedBeds.toLocaleString()} of ${usable.toLocaleString()} usable beds (${o.totalBeds.toLocaleString()} total)`,
+    },
     {
       key: "available",
       label: "Available beds",
@@ -48,161 +60,103 @@ function buildKpis(ctx: TenantContext, s: DashboardSummary): { operational: Kpi[
       format: "number",
       icon: "available",
       tone: "success",
-      href: link("reports.view", "/reports/vacancy"),
-      hint: o.reservedBeds ? `${o.reservedBeds} reserved` : undefined,
+      href: link("reports.view", "/reports/vacancy") ?? link("rooms.view", "/hostels/map"),
+      hint: o.reservedBeds ? `${o.reservedBeds} reserved` : "Ready for check-in",
     },
-    {
-      key: "maintenance",
-      label: "Under maintenance",
-      value: o.maintenanceBeds,
-      format: "number",
-      icon: "maintenance",
-      tone: o.maintenanceBeds ? "warning" : "default",
-      href: link("maintenance.view", "/operations/maintenance"),
-    },
-    { key: "residents", label: "Active residents", value: s.kpis.activeResidents, format: "number", icon: "residents", href: link("residents.view", "/residents"), hint: "Including residents on notice" },
-    { key: "staff", label: "Active staff", value: s.kpis.activeStaff, format: "number", icon: "staff", href: link("staff.view", "/staff") },
   ];
-  const financial: Kpi[] = [];
-  const period = "same days last month";
+
   if (s.finance) {
-    financial.push(
-      {
-        key: "revenue",
-        label: "Revenue billed (this month)",
-        value: s.finance.billed,
-        format: "money",
-        icon: "revenue",
-        href: link("reports.financial", "/reports/revenue"),
-        delta: { pct: change(s.finance.billed, s.finance.previous.billed), goodWhenUp: true, label: period },
-      },
-      {
-        key: "collected",
-        label: "Collected (this month)",
-        value: s.finance.collected,
-        format: "money",
-        icon: "collected",
-        tone: "success",
-        href: link("reports.financial", "/reports/rent-collection"),
-        delta: { pct: change(s.finance.collected, s.finance.previous.collected), goodWhenUp: true, label: period },
-      },
-    );
+    kpis.push({
+      key: "collected",
+      label: "Collected this month",
+      value: s.finance.collected,
+      format: "money",
+      icon: "collected",
+      tone: "success",
+      href: link("reports.financial", "/reports/rent-collection"),
+      delta: { pct: change(s.finance.collected, s.finance.previous.collected), goodWhenUp: true, label: "last month" },
+    });
+  } else {
+    kpis.push({
+      key: "residents",
+      label: "Active residents",
+      value: s.kpis.activeResidents,
+      format: "number",
+      icon: "residents",
+      href: link("residents.view", "/residents"),
+      hint: "Including residents on notice",
+    });
   }
+
   if (s.outstanding) {
-    financial.push({
+    kpis.push({
       key: "outstanding",
-      label: "Outstanding payments",
+      label: "Outstanding",
       value: s.outstanding.total,
       format: "money",
       icon: "outstanding",
       tone: s.outstanding.overdue > 0 ? "danger" : s.outstanding.total > 0 ? "warning" : "default",
-      href: can(ctx, "reports.financial") ? "/reports/outstanding" : link("invoices.view", "/finance/invoices"),
+      href: link("reports.financial", "/reports/outstanding") ?? link("invoices.view", "/finance/invoices"),
       hint: `${s.outstanding.invoices} open invoice${s.outstanding.invoices === 1 ? "" : "s"}`,
     });
-  }
-  if (s.finance) {
-    financial.push({
-      key: "expenses",
-      label: "Expenses (this month)",
-      value: s.finance.expenses,
-      format: "money",
-      icon: "expenses",
-      href: link("reports.financial", "/reports/expenses"),
-      delta: { pct: change(s.finance.expenses, s.finance.previous.expenses), goodWhenUp: false, label: period },
+  } else if (s.kpis.openMaintenance !== null) {
+    kpis.push({
+      key: "maintenance",
+      label: "Open maintenance",
+      value: s.kpis.openMaintenance,
+      format: "number",
+      icon: "maintenance",
+      tone: s.kpis.openMaintenance ? "warning" : "default",
+      href: link("maintenance.view", "/operations/maintenance"),
+      hint: o.maintenanceBeds ? `${o.maintenanceBeds} bed${o.maintenanceBeds === 1 ? "" : "s"} out of service` : "Requests awaiting work",
+    });
+  } else {
+    kpis.push({
+      key: "staff",
+      label: "Active staff",
+      value: s.kpis.activeStaff,
+      format: "number",
+      icon: "staff",
+      href: link("staff.view", "/staff"),
     });
   }
-  return { operational, financial };
+  return kpis;
 }
 
-function buildCharts(s: DashboardSummary): ReportChart[] {
-  const charts: ReportChart[] = [
-    {
-      id: "occupancy-trend",
-      title: "Occupancy trend",
-      description: "Occupied beds vs total beds at each month end",
-      kind: "line",
-      xKey: "month",
-      xFormat: "month",
-      format: "number",
-      span: s.charts.revenueTrend ? "half" : "full",
-      series: [
-        { key: "occupied", label: "Occupied beds" },
-        { key: "beds", label: "Total beds" },
-      ],
-      data: s.charts.occupancyTrend.map((t) => ({ month: t.month, occupied: t.occupied, beds: t.beds })),
-    },
-  ];
+/** One chart: revenue for financial users, occupancy for everyone else. */
+function buildChart(s: DashboardSummary): ReportChart {
   if (s.charts.revenueTrend) {
-    charts.push({
+    return {
       id: "revenue-trend",
-      title: "Revenue trend",
-      description: "Billed vs cash collected, last 12 months",
+      title: "Billed vs collected",
+      description: "Last 12 months",
       kind: "column",
       xKey: "month",
       xFormat: "month",
       format: "money",
-      span: "half",
+      span: "full",
       series: [
         { key: "billed", label: "Billed" },
         { key: "collected", label: "Collected" },
       ],
       data: s.charts.revenueTrend,
-    });
+    };
   }
-  if (s.charts.collectionThisMonth) {
-    charts.push({
-      id: "collection",
-      title: "Payment collection",
-      description: "Net cash collected per day this month",
-      kind: "column",
-      xKey: "day",
-      xFormat: "day",
-      format: "money",
-      span: "half",
-      series: [{ key: "collected", label: "Collected" }],
-      data: s.charts.collectionThisMonth,
-    });
-  }
-  if (s.charts.expensesByCategory) {
-    charts.push({
-      id: "expenses",
-      title: "Expenses by category",
-      description: "Last 3 months",
-      kind: "bar",
-      xKey: "category",
-      format: "money",
-      span: "half",
-      series: [{ key: "amount", label: "Expenses" }],
-      data: s.charts.expensesByCategory,
-    });
-  }
-  if (s.charts.hostelComparison) {
-    const revenue = s.charts.hostelComparison.every((h) => h.revenue !== null);
-    charts.push({
-      id: "compare-occupancy",
-      title: "Hostel comparison · occupancy",
-      kind: "bar",
-      xKey: "hostel",
-      format: "percent",
-      span: revenue ? "half" : "full",
-      series: [{ key: "occupancy", label: "Occupancy" }],
-      data: s.charts.hostelComparison.map((h) => ({ hostel: h.hostel, occupancy: h.occupancy })),
-    });
-    if (revenue) {
-      charts.push({
-        id: "compare-revenue",
-        title: "Hostel comparison · revenue",
-        description: "Billed this month",
-        kind: "bar",
-        xKey: "hostel",
-        format: "money",
-        span: "half",
-        series: [{ key: "revenue", label: "Revenue billed" }],
-        data: s.charts.hostelComparison.map((h) => ({ hostel: h.hostel, revenue: h.revenue ?? 0 })),
-      });
-    }
-  }
-  return charts;
+  return {
+    id: "occupancy-trend",
+    title: "Occupancy trend",
+    description: "Occupied vs total beds at each month end",
+    kind: "line",
+    xKey: "month",
+    xFormat: "month",
+    format: "number",
+    span: "full",
+    series: [
+      { key: "occupied", label: "Occupied beds" },
+      { key: "beds", label: "Total beds" },
+    ],
+    data: s.charts.occupancyTrend.map((t) => ({ month: t.month, occupied: t.occupied, beds: t.beds })),
+  };
 }
 
 export default async function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
@@ -211,9 +165,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
   const summary = await getDashboardSummary(ctx);
   const tz = ctx.organization.timezone || "UTC";
   const firstName = ctx.userName.split(/\s+/)[0] || ctx.userName;
-  const dateLine = new Intl.DateTimeFormat(ctx.organization.locale || "en", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: tz }).format(
-    new Date(),
-  );
+  const dateLine = new Intl.DateTimeFormat(ctx.organization.locale || "en", { weekday: "long", day: "numeric", month: "long", timeZone: tz }).format(new Date());
   const scopeLabel = summary.scope.hostelName ?? (ctx.allHostels ? "All hostels" : "Your hostels");
 
   return (
@@ -247,26 +199,35 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
 }
 
 function DashboardBody({ ctx, summary }: { ctx: TenantContext; summary: DashboardSummary }) {
-  const { operational, financial } = buildKpis(ctx, summary);
-  const charts = buildCharts(summary);
+  const kpis = buildKpis(ctx, summary);
+  const chart = buildChart(summary);
+  // The revenue chart and /finance are both gated by reports.financial.
+  const analyticsHref = summary.charts.revenueTrend && can(ctx, "reports.financial") ? "/finance" : can(ctx, "reports.view") ? "/reports" : null;
+  const showHostels = !ctx.activeHostelId && summary.hostels.length > 1;
+
   return (
     <>
-      <div className="grid gap-3 lg:grid-cols-3">
-        <OccupancyHero stats={summary.kpis.occupancy} href={can(ctx, "reports.view") ? "/reports/occupancy" : undefined} />
-        <KpiGrid items={operational} className="lg:col-span-2" />
-      </div>
+      <KpiGrid items={kpis} />
 
-      {financial.length ? <KpiGrid items={financial} className={financial.length < 4 ? "sm:grid-cols-3" : undefined} /> : null}
+      <ReportChartCard
+        chart={chart}
+        action={
+          analyticsHref ? (
+            <Link
+              href={analyticsHref}
+              className="inline-flex items-center gap-1 rounded-sm text-sm font-medium whitespace-nowrap text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            >
+              <span className="sm:hidden">Details</span>
+              <span className="hidden sm:inline">See detailed analytics</span>
+              <ArrowRight className="size-3.5 rtl:rotate-180" aria-hidden />
+            </Link>
+          ) : null
+        }
+      />
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        {charts.map((c) => (
-          <ReportChartCard key={c.id} chart={c} className={c.span === "full" ? "lg:col-span-2" : undefined} />
-        ))}
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        <HostelOccupancyList hostels={summary.hostels} linkHostels={can(ctx, "hostels.view")} />
-        <ActivityFeed items={summary.activity} className="lg:col-span-2" />
+      <div className={cn("grid gap-4", showHostels && "lg:grid-cols-2")}>
+        {showHostels ? <HostelOccupancyList hostels={summary.hostels} linkHostels={can(ctx, "hostels.view")} /> : null}
+        <ActivityFeed items={summary.activity.slice(0, ACTIVITY_LIMIT)} viewAllHref={can(ctx, "audit.view") ? "/audit-log" : undefined} />
       </div>
     </>
   );

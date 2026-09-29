@@ -8,7 +8,8 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { EnumBadge, StatusBadge } from "@/components/shared/status-badge";
 import { useCan, useFormatters } from "@/components/shared/org-context";
 import { paymentMethodLabels, paymentStatusLabels, paymentStatusTones, paymentTypeLabels, type Tone } from "@/config/labels";
-import type { PaymentMethod, PaymentStatus, PaymentType } from "@/generated/prisma/enums";
+import type { PaymentMethod, PaymentProvider, PaymentStatus, PaymentType } from "@/generated/prisma/enums";
+import { paymentProviderLabels } from "@/config/payment-labels";
 import type { Paginated } from "@/lib/validation/common";
 import { cn } from "@/lib/utils";
 import { DateRangeFilter } from "./date-range-filter";
@@ -26,7 +27,13 @@ export type PaymentRow = {
   hostel: { id: string; name: string };
   invoice: { id: string; invoiceNumber: string } | null;
   receivedBy: string | null;
+  /** Set when the payment came from an online checkout (JazzCash / Easypaisa). */
+  onlineProvider?: PaymentProvider | null;
 };
+
+function methodLabel(p: PaymentRow) {
+  return p.onlineProvider ? `Online (${paymentProviderLabels[p.onlineProvider]})` : paymentMethodLabels[p.method];
+}
 
 const typeTones: Record<PaymentType, Tone> = { PAYMENT: "info", ADVANCE: "accent", REFUND: "warning" };
 
@@ -110,10 +117,10 @@ export function PaymentsTable({
       header: "Type",
       cell: (p) => <StatusBadge tone={typeTones[p.type]} dot={false}>{p.type === "ADVANCE" && p.amount < 0 ? "Credit applied" : paymentTypeLabels[p.type]}</StatusBadge>,
     },
-    { id: "method", header: "Method", cell: (p) => paymentMethodLabels[p.method] },
+    { id: "method", header: "Method", cell: (p) => methodLabel(p) },
     { id: "amount", header: "Amount", align: "end", sortKey: "amount", cell: amount },
     { id: "status", header: "Status", cell: (p) => <EnumBadge value={p.status} labels={paymentStatusLabels} tones={paymentStatusTones} /> },
-    { id: "receivedBy", header: "Received by", cell: (p) => p.receivedBy ?? <span className="text-muted-foreground">—</span> },
+    { id: "receivedBy", header: "Received by", cell: (p) => p.receivedBy ?? <span className="text-muted-foreground">{p.onlineProvider ? "Online" : "—"}</span> },
   ];
 
   return (
@@ -144,7 +151,7 @@ export function PaymentsTable({
               {p.invoice ? ` · ${p.invoice.invoiceNumber}` : ""}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              {fmt.date(p.paymentDate)} · {paymentMethodLabels[p.method]} · {paymentTypeLabels[p.type]}
+              {fmt.date(p.paymentDate)} · {methodLabel(p)} · {paymentTypeLabels[p.type]}
             </p>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1 text-sm font-medium">

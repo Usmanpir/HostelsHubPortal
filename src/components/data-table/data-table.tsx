@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Columns3, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -197,7 +196,7 @@ export function DataTable<T>(props: DataTableProps<T>) {
           ) : null}
         </div>
         <div className="flex items-center gap-2 sm:ms-auto">
-          {props.toolbar}
+          {props.toolbar ? <div className="contents">{props.toolbar}</div> : null}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="hidden md:inline-flex">
@@ -347,15 +346,24 @@ export function DataTable<T>(props: DataTableProps<T>) {
                 ) : (
                   <AutoCard row={row} columns={visible.filter((c) => !c.hideOnMobile)} />
                 );
-                return href && !onRowClick ? (
-                  <Link key={id} href={href} className="block rounded-xl border bg-card p-3 active:bg-accent/50">
-                    {content}
-                  </Link>
-                ) : (
+                const clickable = !!(onRowClick || href);
+                // A container (not <a>): cells often contain their own links, and <a> can't nest.
+                return (
                   <div
                     key={id}
-                    className={cn("rounded-xl border bg-card p-3", onRowClick && "cursor-pointer active:bg-accent/50")}
-                    onClick={onRowClick ? () => onRowClick(row) : undefined}
+                    role={clickable ? "link" : undefined}
+                    tabIndex={clickable ? 0 : undefined}
+                    className={cn(
+                      "rounded-xl border bg-card p-3",
+                      clickable && "cursor-pointer focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:bg-accent/50",
+                    )}
+                    onClick={(e) => {
+                      if ((e.target as HTMLElement).closest("a,button,[role=checkbox],input")) return;
+                      if (clickable) go(row);
+                    }}
+                    onKeyDown={(e) => {
+                      if (clickable && e.key === "Enter" && e.target === e.currentTarget) go(row);
+                    }}
                   >
                     {content}
                   </div>

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
-import { Bell, Building, Building2, CreditCard, FileText, Palette, ShieldCheck, UserCog, Users } from "lucide-react";
+import { Bell, Building, Building2, CreditCard, FileText, Palette, ShieldCheck, UserCog, Users, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SettingsSectionKey } from "./sections";
 
@@ -12,6 +12,7 @@ const ICONS: Record<SettingsSectionKey, LucideIcon> = {
   branding: Palette,
   invoices: FileText,
   notifications: Bell,
+  payments: Wallet,
   hostels: Building2,
   roles: UserCog,
   members: Users,

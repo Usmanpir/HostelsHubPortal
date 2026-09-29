@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/shared/page-header";
+import { SectionTabs } from "@/components/layout/section-tabs";
 import { CheckInWizard } from "@/components/residents/check-in-wizard";
 import { requireTenantPage } from "@/lib/tenant/server";
 import { sp } from "@/lib/page-helpers";
@@ -27,6 +28,7 @@ export default async function CheckInPage({ searchParams }: PageProps<"/resident
         description="Assign a bed, set the rent and deposit, and optionally bill the first invoice."
         breadcrumbs={[{ label: "Residents", href: "/residents" }, { label: "Check in" }]}
       />
+      <SectionTabs group="checkInOut" />
       <CheckInWizard
         key={`${residentId ?? ""}:${bedId ?? ""}`}
         hostels={hostels}

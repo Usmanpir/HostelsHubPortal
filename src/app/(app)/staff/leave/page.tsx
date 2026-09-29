@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CalendarPlus, Plane, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shared/page-header";
+import { SectionTabs } from "@/components/layout/section-tabs";
 import { EmptyState } from "@/components/shared/empty-state";
 import type { FilterDef } from "@/components/data-table/data-table";
 import { LeaveDialog } from "@/components/staff/leave-dialog";
@@ -55,6 +56,7 @@ export default async function LeavePage({ searchParams }: PageProps<"/staff/leav
         breadcrumbs={[{ label: "Staff", href: "/staff" }, { label: "Leave" }]}
         actions={newButton}
       />
+      <SectionTabs group="attendanceLeave" />
       {filters.staffId ? (
         <div className="mb-3 flex items-center gap-2 text-sm">
           <span className="text-muted-foreground">

@@ -35,6 +35,8 @@ import {
   updateMemberHostelAccess,
 } from "@/services/organization/member-service";
 import { cancelSubscription, changePlan, resumeSubscription } from "@/services/organization/subscription-service";
+import { saveGatewayConfig, testGatewayConnection } from "@/services/payments/gateway-config-service";
+import type { GatewayConfigInput } from "@/lib/validation/payments";
 
 // Thin wrappers: resolve the tenant from the session, call the service (which
 // validates, authorizes and audits), then revalidate affected views.
@@ -72,6 +74,24 @@ export async function updateNotificationSettingsAction(input: NotificationSettin
     revalidatePath("/settings/notifications");
     return null;
   }, "Notification settings saved");
+}
+
+// ─── Online payments ────────────────────────────────────────────────────────
+
+export async function saveGatewayConfigAction(input: GatewayConfigInput) {
+  return runAction(async () => {
+    const result = await saveGatewayConfig(await tenantOrThrow(), input);
+    revalidatePath("/settings/payments");
+    return result;
+  }, "Payment gateway saved");
+}
+
+export async function testGatewayConnectionAction(provider: string) {
+  return runAction(async () => {
+    const result = await testGatewayConnection(await tenantOrThrow(), provider);
+    revalidatePath("/settings/payments");
+    return result;
+  });
 }
 
 // ─── Roles ──────────────────────────────────────────────────────────────────

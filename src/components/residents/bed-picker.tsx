@@ -1,17 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { BedDouble, DoorOpen, Layers, RotateCcw } from "lucide-react";
+import { DoorOpen, Layers, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { BedTile } from "@/components/hostels/bed-tile";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useFormatters } from "@/components/shared/org-context";
 import { roomTypeLabels } from "@/config/labels";
 import { cn } from "@/lib/utils";
 import type { getHostelBedMap } from "@/services/resident/assignment-service";
 import { hostelBedMapAction } from "@/app/(app)/residents/actions";
-import { ChoiceCard } from "./wizard-shell";
 
 export type HostelBedMap = Awaited<ReturnType<typeof getHostelBedMap>>;
 export type MapFloor = HostelBedMap["floors"][number];
@@ -108,7 +109,8 @@ export function MapSkeleton() {
   );
 }
 
-export function HostelChoices({
+/** Hostel dropdown for the check-in flow (hidden by callers when there is only one). */
+export function HostelSelect({
   hostels,
   value,
   onChange,
@@ -117,81 +119,149 @@ export function HostelChoices({
   value: string | null;
   onChange: (id: string) => void;
 }) {
-  const fmt = useFormatters();
   return (
-    <div className="grid gap-2 sm:grid-cols-2">
-      {hostels.map((h) => (
-        <ChoiceCard
-          key={h.id}
-          selected={value === h.id}
-          onClick={() => onChange(h.id)}
-          icon={<BedDouble className="size-4" />}
-          title={h.name}
-          subtitle={[h.code, h.city, h.defaultBedRent !== null ? `${fmt.money(h.defaultBedRent)}/bed` : null].filter(Boolean).join(" · ")}
-          meta={
-            <span className={cn("tabular", h.availableBeds === 0 ? "text-warning" : "text-success")}>
-              {h.availableBeds} free
-            </span>
-          }
-        />
-      ))}
+    <div className="grid gap-2">
+      <Label htmlFor="bed-picker-hostel">Hostel</Label>
+      <Select value={value ?? ""} onValueChange={onChange}>
+        <SelectTrigger id="bed-picker-hostel" className="h-11 w-full data-[size=default]:h-11">
+          <SelectValue placeholder="Choose a hostel" />
+        </SelectTrigger>
+        <SelectContent>
+          {hostels.map((h) => (
+            <SelectItem key={h.id} value={h.id}>
+              {h.name}
+              <span className={cn("tabular text-xs", h.availableBeds === 0 ? "text-warning" : "text-muted-foreground")}>
+                {h.availableBeds} free
+              </span>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }
 
-export function FloorChoices({ floors, value, onChange }: { floors: MapFloor[]; value: string | null; onChange: (id: string) => void }) {
-  if (floors.length === 0) {
+/**
+ * One-screen visual picker: floor chips on top, then every room on that floor
+ * with its bed tiles. Only available beds are selectable.
+ */
+export function BedMapPicker({
+  map,
+  floorId,
+  onFloorChange,
+  value,
+  onChange,
+}: {
+  map: HostelBedMap;
+  floorId: string | null;
+  onFloorChange: (id: string) => void;
+  value: string | null;
+  onChange: (bed: MapBed) => void;
+}) {
+  const fmt = useFormatters();
+  if (map.floors.length === 0) {
     return <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">This hostel has no floors yet.</p>;
   }
+  const floor = map.floors.find((f) => f.id === floorId) ?? map.floors.find((f) => f.availableBeds > 0) ?? map.floors[0]!;
+  const selected = value ? findBed(map, value) : null;
+
   return (
-    <div className="grid gap-2 sm:grid-cols-2">
-      {floors.map((f) => (
-        <ChoiceCard
-          key={f.id}
-          selected={value === f.id}
-          disabled={f.availableBeds === 0}
-          onClick={() => onChange(f.id)}
-          icon={<Layers className="size-4" />}
-          title={f.name}
-          subtitle={`${f.rooms.length} room${f.rooms.length === 1 ? "" : "s"}`}
-          meta={<span className="tabular">{f.availableBeds} free</span>}
-        />
-      ))}
+    <div className="flex flex-col gap-4">
+      {map.floors.length > 1 ? (
+        <div role="group" aria-label="Floors" className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+          {map.floors.map((f) => {
+            const active = f.id === floor.id;
+            return (
+              <button
+                key={f.id}
+                type="button"
+                aria-pressed={active}
+                onClick={() => onFloorChange(f.id)}
+                className={cn(
+                  "flex h-11 shrink-0 items-center gap-2 rounded-full border px-4 text-sm transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+                  active ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted",
+                  !active && f.availableBeds === 0 && "text-muted-foreground",
+                )}
+              >
+                <Layers className="size-4" />
+                {f.name}
+                <span className="tabular text-xs opacity-80">{f.availableBeds} free</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {floor.rooms.length === 0 ? (
+        <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">No rooms on this floor.</p>
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2">
+          {floor.rooms.map((r) => {
+            const rents = [...new Set(r.beds.filter((b) => b.selectable).map((b) => b.rent))];
+            const hasSelected = r.beds.some((b) => b.id === value);
+            return (
+              <div
+                key={r.id}
+                className={cn("rounded-xl border p-3", hasSelected && "border-primary ring-1 ring-primary", r.availableBeds === 0 && "bg-muted/30")}
+              >
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-1.5 text-sm font-medium">
+                    <DoorOpen className="size-4 text-muted-foreground" />
+                    Room {r.roomNumber}
+                  </span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    {r.blockedReason ??
+                      `${roomTypeLabels[r.roomType]} · ${r.availableBeds} free${rents.length === 1 ? ` · ${fmt.money(rents[0])}` : ""}`}
+                  </span>
+                </div>
+                {r.beds.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No beds in this room.</p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {r.beds.map((b) => (
+                      <SelectableBed key={b.id} bed={b} selected={value === b.id} onSelect={onChange} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <p className="text-sm text-muted-foreground" aria-live="polite">
+        {selected ? (
+          <>
+            Selected: {selected.floor.name} · Room {selected.room.roomNumber} · Bed {selected.bed.bedNumber} ·{" "}
+            <span className="tabular font-medium text-foreground">{fmt.money(selected.bed.rent)}</span> / month
+          </>
+        ) : (
+          "Tap a green bed to select it."
+        )}
+      </p>
     </div>
   );
 }
 
-export function RoomChoices({ rooms, value, onChange }: { rooms: MapRoom[]; value: string | null; onChange: (id: string) => void }) {
-  const fmt = useFormatters();
-  if (rooms.length === 0) {
-    return <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">No rooms on this floor.</p>;
-  }
+function SelectableBed({ bed, selected, onSelect }: { bed: MapBed; selected: boolean; onSelect: (bed: MapBed) => void }) {
   return (
-    <div className="grid gap-2 sm:grid-cols-2">
-      {rooms.map((r) => {
-        const rents = [...new Set(r.beds.filter((b) => b.selectable).map((b) => b.rent))];
-        return (
-          <ChoiceCard
-            key={r.id}
-            selected={value === r.id}
-            disabled={r.availableBeds === 0}
-            onClick={() => onChange(r.id)}
-            icon={<DoorOpen className="size-4" />}
-            title={`Room ${r.roomNumber}`}
-            subtitle={
-              r.blockedReason
-                ? r.blockedReason
-                : `${roomTypeLabels[r.roomType]} · ${r.beds.filter((b) => b.residentName).length}/${r.capacity} taken${rents.length === 1 ? ` · ${fmt.money(rents[0])}` : ""}`
-            }
-            meta={<span className="tabular">{r.availableBeds} free</span>}
-          />
-        );
-      })}
+    <div
+      className={cn(
+        "rounded-lg [&>button]:w-full",
+        selected && "ring-2 ring-primary ring-offset-2 ring-offset-card",
+        !bed.selectable && "pointer-events-none opacity-50",
+      )}
+      aria-disabled={!bed.selectable}
+    >
+      <BedTile
+        bed={{ id: bed.id, bedNumber: bed.bedNumber, status: bed.status, residentName: bed.residentName }}
+        onClick={bed.selectable ? () => onSelect(bed) : undefined}
+      />
     </div>
   );
 }
 
-/** Visual bed tiles; only selectable beds react to clicks. */
+/** Visual bed tiles for a single room; only selectable beds react to clicks. */
 export function BedChoices({ room, value, onChange }: { room: MapRoom; value: string | null; onChange: (bed: MapBed) => void }) {
   const fmt = useFormatters();
   const selected = room.beds.find((b) => b.id === value);
@@ -199,20 +269,7 @@ export function BedChoices({ room, value, onChange }: { room: MapRoom; value: st
     <div className="flex flex-col gap-3">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {room.beds.map((b) => (
-          <div
-            key={b.id}
-            className={cn(
-              "rounded-lg [&>button]:w-full",
-              value === b.id && "ring-2 ring-primary ring-offset-2 ring-offset-card",
-              !b.selectable && "pointer-events-none opacity-50",
-            )}
-            aria-disabled={!b.selectable}
-          >
-            <BedTile
-              bed={{ id: b.id, bedNumber: b.bedNumber, status: b.status, residentName: b.residentName }}
-              onClick={b.selectable ? () => onChange(b) : undefined}
-            />
-          </div>
+          <SelectableBed key={b.id} bed={b} selected={value === b.id} onSelect={onChange} />
         ))}
       </div>
       {selected ? (

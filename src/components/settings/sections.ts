@@ -5,6 +5,7 @@ export type SettingsSectionKey =
   | "branding"
   | "invoices"
   | "notifications"
+  | "payments"
   | "hostels"
   | "roles"
   | "members"
@@ -48,6 +49,13 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     href: "/settings/notifications",
     label: "Notifications",
     description: "Which events notify your team and residents.",
+    permission: "settings.organization",
+  },
+  {
+    key: "payments",
+    href: "/settings/payments",
+    label: "Online payments",
+    description: "Let residents pay rent with JazzCash or Easypaisa.",
     permission: "settings.organization",
   },
   {

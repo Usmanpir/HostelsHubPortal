@@ -402,6 +402,7 @@ export async function getInvoice(ctx: TenantContext, id: string) {
           paymentDate: true,
           voidReason: true,
           receivedBy: { select: { name: true } },
+          onlinePayment: { select: { provider: true } },
         },
       },
     },

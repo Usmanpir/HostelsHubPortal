@@ -2,6 +2,7 @@ import Link from "next/link";
 import { LayoutGrid } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shared/page-header";
+import { SectionTabs } from "@/components/layout/section-tabs";
 import { StatCard } from "@/components/shared/stat-card";
 import { BedsTable } from "@/components/hostels/beds-table";
 import { requireTenantPage } from "@/lib/tenant/server";
@@ -42,6 +43,7 @@ export default async function BedsPage({ searchParams }: PageProps<"/hostels/bed
           </Button>
         }
       />
+      <SectionTabs group="roomsAndBeds" />
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-5">
         <StatCard label="Total beds" value={o.totalBeds} />
         <StatCard label="Occupied" value={o.occupiedBeds} tone="info" />

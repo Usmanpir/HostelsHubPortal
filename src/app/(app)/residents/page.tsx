@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BedDouble, BellRing, LogIn, LogOut, Plus, UserCheck, Users } from "lucide-react";
+import { BedDouble, BellRing, LogIn, LogOut, Plus, Upload, UserCheck, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
@@ -50,12 +50,20 @@ export default async function ResidentsPage({ searchParams }: PageProps<"/reside
               </>
             ) : null}
             {canManage ? (
-              <Button asChild>
-                <Link href="/residents/new">
-                  <Plus />
-                  Add resident
-                </Link>
-              </Button>
+              <>
+                <Button asChild variant="outline">
+                  <Link href="/residents/import">
+                    <Upload />
+                    Import
+                  </Link>
+                </Button>
+                <Button asChild>
+                  <Link href="/residents/new">
+                    <Plus />
+                    Add resident
+                  </Link>
+                </Button>
+              </>
             ) : null}
           </>
         }

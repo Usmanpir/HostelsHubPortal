@@ -59,7 +59,12 @@ function kindOf(action: string, entityType: string): ActivityKind {
 /** Organization-wide feed from the audit log (members with access to every hostel). */
 async function auditFeed(ctx: TenantContext): Promise<ActivityItem[]> {
   const logs = await prisma.auditLog.findMany({
-    where: { organizationId: ctx.organizationId, OR: FEED_PREFIXES.map((p) => ({ action: { startsWith: p } })) },
+    where: {
+      organizationId: ctx.organizationId,
+      OR: FEED_PREFIXES.map((p) => ({ action: { startsWith: p } })),
+      // Online checkout bookkeeping; the resulting "payment.created" entry already tells the story.
+      NOT: { action: { startsWith: "payment.online_" } },
+    },
     orderBy: { createdAt: "desc" },
     take: 40,
     select: { id: true, action: true, entityType: true, entityId: true, createdAt: true, user: { select: { name: true } } },
@@ -111,7 +116,8 @@ async function auditFeed(ctx: TenantContext): Promise<ActivityItem[]> {
         const p = P.get(id);
         href = p ? `/finance/payments/${id}` : null;
         const who = name(p?.resident);
-        if (e.action === "payment.created" && p) parts = [{ text: "recorded a payment of" }, { amount: round2(toNumber(p.amount)) }, ...(who ? [{ text: "from" }, { text: who, strong: true }] : [])];
+        if (e.action === "payment.created" && p && who && who === e.user?.name) parts = [{ text: "paid" }, { amount: round2(toNumber(p.amount)) }];
+        else if (e.action === "payment.created" && p) parts = [{ text: "recorded a payment of" }, { amount: round2(toNumber(p.amount)) }, ...(who ? [{ text: "from" }, { text: who, strong: true }] : [])];
         else if (e.action === "payment.refund_created" && p) parts = [{ text: "issued a refund of" }, { amount: round2(toNumber(p.amount)) }, ...(who ? [{ text: "to" }, { text: who, strong: true }] : [])];
         else if (e.action === "payment.credit_applied" && p) parts = [{ text: "applied credit of" }, { amount: round2(toNumber(p.amount)) }, ...(who ? [{ text: "for" }, { text: who, strong: true }] : [])];
         else parts = [{ text: `${verb} payment` }, ...(p ? [{ text: p.receiptNumber, strong: true }] : [])];

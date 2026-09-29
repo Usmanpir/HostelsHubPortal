@@ -2,6 +2,7 @@ import Link from "next/link";
 import { BedDouble, CalendarClock, History, LogIn, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shared/page-header";
+import { SectionTabs } from "@/components/layout/section-tabs";
 import { StatCard } from "@/components/shared/stat-card";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ExportMenu } from "@/components/data-table/export-menu";
@@ -40,6 +41,7 @@ export default async function AssignmentsPage({ searchParams }: PageProps<"/resi
           ) : null
         }
       />
+      <SectionTabs group="checkInOut" />
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Active stays" value={stats.active} icon={BedDouble} tone="success" href="/residents/assignments?status=ACTIVE" />
         <StatCard label="Reservations" value={stats.reserved} icon={CalendarClock} tone="info" href="/residents/assignments?status=RESERVED" />

@@ -3,6 +3,7 @@ import { paymentMethodLabels, paymentStatusLabels, paymentStatusTones, paymentTy
 import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
 import type { PaymentDetail } from "@/services/finance/payment-service";
 import { cn } from "@/lib/utils";
+import { paymentProviderLabels } from "@/config/payment-labels";
 import { amountInWords } from "./amount-in-words";
 
 const TITLES = { PAYMENT: "Payment receipt", ADVANCE: "Advance receipt", REFUND: "Refund voucher" } as const;
@@ -21,10 +22,10 @@ export function ReceiptDocument({ payment, timezone }: { payment: PaymentDetail;
     ["Hostel", payment.hostel.name],
     ...(payment.invoice ? ([["Invoice", <span key="i" className="font-mono text-xs">{payment.invoice.invoiceNumber}</span>]] as [string, React.ReactNode][]) : []),
     ["Type", paymentTypeLabels[payment.type]],
-    ["Method", paymentMethodLabels[payment.method]],
+    ["Method", payment.onlinePayment ? `Online (${paymentProviderLabels[payment.onlinePayment.provider]})` : paymentMethodLabels[payment.method]],
     ...(payment.reference ? ([["Reference", payment.reference]] as [string, React.ReactNode][]) : []),
     ["Date", formatDate(payment.paymentDate, org.locale)],
-    [payment.type === "REFUND" ? "Paid by" : "Received by", payment.receivedBy?.name ?? "—"],
+    [payment.type === "REFUND" ? "Paid by" : "Received by", payment.receivedBy?.name ?? (payment.onlinePayment ? "Online payment" : "—")],
   ];
 
   return (

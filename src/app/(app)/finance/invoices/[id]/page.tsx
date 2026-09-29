@@ -12,6 +12,7 @@ import { loadOr404 } from "@/lib/page-helpers";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
 import { getInvoice } from "@/services/finance/invoice-service";
 import { invoiceStatusLabels, invoiceStatusTones, paymentMethodLabels, paymentStatusLabels, paymentStatusTones } from "@/config/labels";
+import { paymentProviderLabels } from "@/config/payment-labels";
 import { applyCreditAction, cancelInvoiceAction, issueInvoiceAction } from "../../actions";
 
 export const metadata = { title: "Invoice" };
@@ -168,7 +169,8 @@ export default async function InvoiceDetailPage({ params }: PageProps<"/finance/
                       <div className="min-w-0">
                         <p className="font-mono text-xs font-medium">{p.receiptNumber}</p>
                         <p className="text-xs text-muted-foreground">
-                          {formatDate(p.paymentDate, ctx.organization.locale)} · {paymentMethodLabels[p.method]}
+                          {formatDate(p.paymentDate, ctx.organization.locale)} ·{" "}
+                          {p.onlinePayment ? `Online (${paymentProviderLabels[p.onlinePayment.provider]})` : paymentMethodLabels[p.method]}
                           {p.receivedBy ? ` · ${p.receivedBy.name}` : ""}
                         </p>
                         {p.status === "VOIDED" && p.voidReason ? <p className="mt-1 text-xs text-danger">Voided: {p.voidReason}</p> : null}

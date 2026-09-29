@@ -7,9 +7,10 @@ import { Star, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
-import { FormGrid, FormSection, MoneyField, SelectField, TextareaField, TextField } from "@/components/forms/fields";
+import { FormGrid, MoneyField, SelectField, TextareaField, TextField } from "@/components/forms/fields";
 import { SubmitButton } from "@/components/forms/submit-button";
 import { useActionForm } from "@/components/forms/use-action-form";
+import { MoreDetails } from "@/components/forms/more-details";
 import { FileUpload, type UploadedFile } from "@/components/shared/file-upload";
 import { useFormatters } from "@/components/shared/org-context";
 import { employmentTypeLabels, optionsFrom, staffStatusLabels, staffTypeLabels } from "@/config/labels";
@@ -17,6 +18,20 @@ import { staffSchema, type StaffInput } from "@/lib/validation/staff";
 import { cn } from "@/lib/utils";
 import { createStaffAction, updateStaffAction } from "@/app/(app)/staff/actions";
 import { StaffAvatar } from "./staff-avatar";
+
+/** Optional fields shown under "More details" (opened automatically on errors). */
+const MORE_FIELDS = [
+  "email",
+  "idNumber",
+  "address",
+  "dateOfBirth",
+  "department",
+  "employmentType",
+  "status",
+  "userId",
+  "notes",
+  "photoFileId",
+] as const satisfies readonly (keyof StaffInput)[];
 
 export type LinkableMember = { userId: string; name: string; email: string; roleName: string };
 
@@ -74,68 +89,22 @@ export function StaffForm({
   });
   const c = form.control;
   const shownPhotoId = photoRemoved ? null : currentPhotoFileId;
+  // A single hostel is pre-assigned; only show the picker when there's a choice to make.
+  const defaultHostelIds = initial?.hostelIds ?? (hostels.length === 1 ? [hostels[0]!.id] : []);
+  const showHostels = hostels.length !== 1 || !defaultHostelIds.includes(hostels[0]!.id);
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-6 rounded-xl border bg-card p-4 sm:p-6" noValidate>
-      <FormSection title="Personal details" description="Contact and identity information.">
-        <div className="flex items-center gap-4">
-          <StaffAvatar name={displayName || "New staff"} photoFileId={photo ? photo.id : shownPhotoId} size="lg" className="size-14" />
-          <div className="min-w-0 flex-1">
-            {photo || !shownPhotoId ? (
-              <FileUpload
-                purpose="staff-photo"
-                kind="image"
-                value={photo}
-                label="Upload photo"
-                hint="JPG, PNG or WebP"
-                onChange={(file) => {
-                  setPhoto(file);
-                  form.setValue("photoFileId", file?.id ?? "");
-                }}
-              />
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setPhotoRemoved(true);
-                    form.setValue("removePhoto", true);
-                  }}
-                >
-                  <Trash2 />
-                  Remove photo
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
-        <FormGrid>
-          <TextField control={c} name="firstName" label="First name" required autoComplete="off" />
-          <TextField control={c} name="lastName" label="Last name" required autoComplete="off" />
-          <TextField control={c} name="phone" label="Phone" type="tel" required inputMode="tel" />
-          <TextField control={c} name="email" label="Email" type="email" />
-          <TextField control={c} name="idNumber" label="CNIC / ID number" />
-          <TextField control={c} name="dateOfBirth" label="Date of birth" type="date" />
-        </FormGrid>
-        <TextField control={c} name="address" label="Address" />
-      </FormSection>
+    <form onSubmit={onSubmit} className="flex flex-col gap-5 rounded-xl border bg-card p-4 sm:p-6" noValidate>
+      <FormGrid>
+        <TextField control={c} name="firstName" label="First name" required autoComplete="off" />
+        <TextField control={c} name="lastName" label="Last name" required autoComplete="off" />
+        <TextField control={c} name="phone" label="Phone" type="tel" required inputMode="tel" />
+        <SelectField control={c} name="designation" label="Designation" required options={optionsFrom(staffTypeLabels)} />
+        <TextField control={c} name="joiningDate" label="Joining date" type="date" required />
+        {canSetSalary ? <MoneyField control={c} name="salary" label="Monthly salary" currency={currency} /> : null}
+      </FormGrid>
 
-      <FormSection title="Employment" description="Role, contract and pay.">
-        <FormGrid>
-          <SelectField control={c} name="designation" label="Designation" required options={optionsFrom(staffTypeLabels)} />
-          <TextField control={c} name="department" label="Department" placeholder="Housekeeping" />
-          <SelectField control={c} name="employmentType" label="Employment type" options={optionsFrom(employmentTypeLabels)} />
-          <SelectField control={c} name="status" label="Status" options={optionsFrom(staffStatusLabels)} />
-          <TextField control={c} name="joiningDate" label="Joining date" type="date" required />
-          {canSetSalary ? (
-            <MoneyField control={c} name="salary" label="Monthly salary" currency={currency} description="Used as the base salary when payroll is generated." />
-          ) : null}
-        </FormGrid>
-      </FormSection>
-
-      <FormSection title="Hostels" description="Where this person works. The primary hostel is used for attendance and payslips.">
+      {showHostels ? (
         <Controller
           control={c}
           name="hostelIds"
@@ -194,25 +163,64 @@ export function StaffForm({
             );
           }}
         />
-      </FormSection>
+      ) : null}
 
-      <FormSection title="App account" description="Link a team member's login so they see their own tasks and can request leave.">
+      <MoreDetails errors={form.formState.errors} fields={MORE_FIELDS} hint="Photo, email, CNIC, address, employment type, status, app account, notes">
+        <div className="flex items-center gap-4">
+          <StaffAvatar name={displayName || "New staff"} photoFileId={photo ? photo.id : shownPhotoId} size="lg" className="size-14" />
+          <div className="min-w-0 flex-1">
+            {photo || !shownPhotoId ? (
+              <FileUpload
+                purpose="staff-photo"
+                kind="image"
+                value={photo}
+                label="Upload photo"
+                hint="JPG, PNG or WebP"
+                onChange={(file) => {
+                  setPhoto(file);
+                  form.setValue("photoFileId", file?.id ?? "");
+                }}
+              />
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setPhotoRemoved(true);
+                    form.setValue("removePhoto", true);
+                  }}
+                >
+                  <Trash2 />
+                  Remove photo
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+        <FormGrid>
+          <TextField control={c} name="email" label="Email" type="email" />
+          <TextField control={c} name="idNumber" label="CNIC / ID number" />
+          <TextField control={c} name="dateOfBirth" label="Date of birth" type="date" />
+          <TextField control={c} name="department" label="Department" placeholder="Housekeeping" />
+          <SelectField control={c} name="employmentType" label="Employment type" options={optionsFrom(employmentTypeLabels)} />
+          <SelectField control={c} name="status" label="Status" options={optionsFrom(staffStatusLabels)} />
+          <TextField control={c} name="address" label="Address" className="sm:col-span-2" />
+        </FormGrid>
         <SelectField
           control={c}
           name="userId"
           label="Linked account"
           allowEmpty="Not linked"
           options={members.map((m) => ({ value: m.userId, label: `${m.name} · ${m.email} (${m.roleName})` }))}
-          description={members.length === 0 ? "All active team members are already linked to staff records." : undefined}
+          description={members.length === 0 ? "All active team members are already linked to staff records." : "Lets them see their own tasks and request leave."}
         />
-      </FormSection>
-
-      <FormSection title="Notes">
         <TextareaField control={c} name="notes" label="Internal notes" rows={3} />
-      </FormSection>
+      </MoreDetails>
 
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-        <Button type="button" variant="outline" onClick={() => router.back()}>
+        <Button type="button" variant="ghost" onClick={() => router.back()}>
           Cancel
         </Button>
         <SubmitButton pending={pending}>{staffId ? "Save changes" : "Add staff member"}</SubmitButton>

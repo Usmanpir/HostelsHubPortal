@@ -53,7 +53,7 @@ export async function createResidentAction(input: ResidentInput) {
   return runAction(async () => {
     const resident = await createResident(await tenantOrThrow(), input);
     revalidatePath("/residents");
-    return { id: resident.id };
+    return { id: resident.id, code: resident.residentCode };
   }, "Resident added");
 }
 

@@ -102,6 +102,7 @@ Every organization is a fully isolated tenant. Access is controlled by granular,
 - Residents see their own room, invoices, payments and receipts, and announcements
 - Mobile-first design
 - Residents can submit complaints, maintenance requests and room-change or leave requests
+- **Online rent payments** with JazzCash and Easypaisa, using each organization's own merchant account (see [Online payments](#online-payments))
 
 ## Tech stack
 
@@ -183,6 +184,8 @@ Copy `.env.example` to `.env`. All variables are documented there.
 | `SALES_EMAIL` | No | Inbox for "Book a demo" requests (defaults to `EMAIL_FROM`) |
 | `GEMINI_API_KEY` | No | Enables the in-app AI assistant. A free key is available from [Google AI Studio](https://aistudio.google.com/apikey). If empty, the assistant shows as unavailable |
 | `GEMINI_MODEL` | No | Gemini model for the assistant (default `gemini-flash-latest`) |
+| `PAYMENTS_ENCRYPTION_KEY` | Production, if online payments are used | 32-byte base64 key (`openssl rand -base64 32`) that encrypts gateway credentials. If unset, a key is derived from `AUTH_SECRET`. Keep it stable |
+| `PAYMENTS_SIMULATOR` | No | `true` enables the local payment simulator. Ignored when `NODE_ENV=production` |
 
 ## Scripts
 
@@ -274,6 +277,27 @@ These rules are enforced in the service layer and, where possible, by database c
 | Financial records are never deleted | Invoices are cancelled and payments and expenses are voided, each with a reason and a before/after audit entry |
 | History survives archiving | Archived residents and hostels still appear in reports |
 | Plan limits are enforced | Hostels, beds, residents, staff and storage are checked whenever a record is created |
+
+## Online payments
+
+Residents can pay an invoice's remaining balance from the resident portal (**Pay online** on the invoice and on the portal home). Each organization connects **its own** JazzCash and/or Easypaisa merchant account under **Settings → Online payments** (permission `settings.organization`), so the money settles directly with the hostel. Both gateways only accept PKR.
+
+**JazzCash (Page Redirection v1.1).** In the JazzCash sandbox portal, copy the Merchant ID, Password and Integrity Salt into the settings screen. Register the return URL `${NEXT_PUBLIC_APP_URL}/api/payments/online/jazzcash/return` as your Return URL, because JazzCash rejects checkouts whose return URL doesn't match. Requests and responses are signed with HMAC-SHA256 (`pp_SecureHash`). Stale payments are re-checked through the Payment Inquiry API.
+
+**Easypaisa (Easypay hosted checkout).** Enter the Store ID, your Easypaisa account number, the 16-character Hash Key (Merchant Portal → Account Settings) and the web-service username and password. Use `${NEXT_PUBLIC_APP_URL}/api/payments/online/easypaisa/return` as the post-back URL. Add `${NEXT_PUBLIC_APP_URL}/api/payments/online/easypaisa/ipn` under IPN Attribute Configurations. Easypaisa's browser post-back is not signed, so every payment is confirmed with the Inquire Transaction API before it is recorded.
+
+Start in **Sandbox**, complete a test payment end to end, then switch to **Live** with production credentials. Use **Test connection** to check the credentials against the gateway.
+
+**Local development.** Set `PAYMENTS_SIMULATOR=true` to add a "Test payment" option. It opens `/portal/payments/simulator` with Approve, Decline and Cancel buttons. The result is posted to the same return route with a server-generated HMAC, so the full completion path runs without merchant accounts. The simulator can't be enabled in production.
+
+**How it stays safe**
+
+- Credentials are encrypted with AES-256-GCM and are write-only in the UI. Audit entries record which secret changed, never its value.
+- Return and IPN routes take no session and have no CSRF check, because the gateway calls them. A payment is recorded only after a signature check or a server-side inquiry. Amounts and statuses sent by the browser are never trusted.
+- Completion is idempotent: the `OnlinePayment` row is locked, and `paymentId` is unique. A replayed or concurrent callback can't create a second payment.
+- The amount must match what was charged. On success a normal `Payment` (method `ONLINE`) is recorded through the same ledger code as cash payments. If the invoice was settled in the meantime, the money is kept as advance credit.
+- The daily job (`/api/cron/daily`) reconciles stale pending payments and expires abandoned ones.
+- Staff see online payments as regular receipts labelled "Online (JazzCash)", plus every attempt under **Finance → Payments → Online attempts**.
 
 ## Security
 
