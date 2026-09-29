@@ -5,6 +5,7 @@
     "scripts": {
         "dev": "next dev",
         "build": "prisma generate && next build",
+        "vercel-build": "node scripts/vercel-build.mjs",
         "start": "next start",
         "lint": "eslint",
         "typecheck": "next typegen && tsc --noEmit",
@@ -15,6 +16,7 @@
         "db:migrate": "prisma migrate dev",
         "db:deploy": "prisma migrate deploy",
         "db:seed": "prisma db seed",
+        "db:bootstrap": "tsx --conditions=react-server scripts/bootstrap.mts",
         "db:reset": "prisma migrate reset --force",
         "db:studio": "prisma studio"
     },

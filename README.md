@@ -373,8 +373,8 @@ HostelHub is ready for Vercel and also runs on any Node.js host.
 
 1. Provision a PostgreSQL database (for example Neon, Supabase or Amazon RDS) and a **private** S3-compatible bucket.
 2. Configure the environment variables listed above: `STORAGE_DRIVER=s3`, the SMTP settings and `CRON_SECRET`.
-3. Deploy. The build command is `npm run build`.
-4. Apply migrations to the production database with `npm run db:deploy`, from CI or as a release step. Never run the seed in production.
+3. Deploy. On Vercel the `vercel-build` script runs automatically: production deploys apply pending migrations (`prisma migrate deploy`) and upsert the default plans (`npm run db:bootstrap`) before `next build`. Preview deploys skip migrations unless `MIGRATE_ON_PREVIEW=true` (use it only when previews have their own database, such as Neon preview branches). On other hosts, run `npm run db:deploy` and `npm run db:bootstrap` as a release step, then `npm run build`.
+4. Never run the seed (`db:seed`) in production — it creates demo accounts. `db:bootstrap` is the production-safe equivalent.
 5. `vercel.json` schedules `/api/cron/daily`. It marks overdue invoices, sends rent-due reminders and publishes scheduled announcements.
 6. Create the first platform administrator: register an account, then set `isSuperAdmin = true` on that user in the database.
 

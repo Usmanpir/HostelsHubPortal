@@ -1,4 +1,4 @@
-import { BedDouble, CheckCircle2, CreditCard, TrendingUp, Users, Wrench } from "lucide-react";
+import { BedDouble, Building2, CheckCircle2, CreditCard, Handshake, TrendingUp, Wrench } from "lucide-react";
 import { APP_NAME } from "@/config/defaults";
 import { cn } from "@/lib/utils";
 
@@ -20,10 +20,11 @@ const bedTone: Record<string, string> = {
 };
 
 const POINTS = [
-  { icon: BedDouble, text: "Live bed map across every property" },
+  { icon: BedDouble, text: "Live bed and unit availability" },
+  { icon: Building2, text: "Whole-unit leases and owner payouts" },
   { icon: CreditCard, text: "Rent invoices, payments and receipts" },
-  { icon: Users, text: "Residents, staff and role-based access" },
-  { icon: Wrench, text: "Maintenance, complaints and visitors" },
+  { icon: Handshake, text: "Leads, deals and public listings" },
+  { icon: Wrench, text: "Maintenance, residents and staff access" },
 ];
 
 export function AuthVisual() {
@@ -39,7 +40,7 @@ export function AuthVisual() {
       <div className="relative">
         <p className="text-sm font-medium text-primary">{APP_NAME}</p>
         <h2 className="mt-3 max-w-md text-3xl font-semibold tracking-tight text-balance">
-          Every hostel, room and bed — in one calm workspace.
+          Hostels, rentals and real estate — in one calm workspace.
         </h2>
       </div>
 
@@ -66,7 +67,7 @@ export function AuthVisual() {
             <Legend className="bg-danger/60" label="Maintenance" />
           </div>
         </div>
-        <div className="-mt-6 ms-10 me-4 grid grid-cols-2 gap-3">
+        <div className="relative -mt-6 ms-10 me-4 grid grid-cols-2 gap-3">
           <div className="rounded-xl border bg-card p-3 shadow-lg shadow-primary/5">
             <p className="text-[11px] text-muted-foreground">Rent collected</p>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">

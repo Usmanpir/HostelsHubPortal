@@ -22,7 +22,13 @@
       "PowerShell(Start-Sleep 7; $env:BASE_URL=\"http://localhost:3000\"; node scripts/smoke.mjs 2>&1 | Select-String \"✗|✓ All|failure|Error|^Property|^Agent|^Public\")",
       "PowerShell($env:BASE_URL=\"http://localhost:3000\"; node scripts/smoke.mjs 2>&1 | Select-String \"✗|✓ All|failure|other tenant|disabled public\")",
       "PowerShell(npx tsc --noEmit -p . 2>&1)",
-      "PowerShell(npx eslint \"src/app/\\(app\\)/residents/page.tsx\" scripts/smoke.mjs)"
+      "PowerShell(npx eslint \"src/app/\\(app\\)/residents/page.tsx\" scripts/smoke.mjs)",
+      "Bash(python -)",
+      "Bash(node -e \"const l=require\\('lucide-react'\\);console.log\\(['Handshake','Building2','TriangleAlert','Circle','Check','RotateCcw'].map\\(n=>n+':'+!!l[n]\\).join\\(' '\\)\\)\")",
+      "Bash(npx eslint *)",
+      "Bash(sed -i 's/<div className=\"-mt-6 ms-10 me-4 grid grid-cols-2 gap-3\">/<div className=\"relative -mt-6 ms-10 me-4 grid grid-cols-2 gap-3\">/' src/components/auth/auth-visual.tsx)",
+      "Bash(curl -s http://localhost:3000/register)",
+      "PowerShell(Get-CimInstance Win32_Process -Filter \"ProcessId=31408\")"
     ],
     "additionalDirectories": [
       "C:\\Users\\USER\\Downloads\\Personal Projects\\HostelManagementPortal\\src\\components\\forms"
