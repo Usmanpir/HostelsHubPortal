@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -26,6 +26,11 @@ export function LoginForm({ callbackUrl, defaultEmail }: { callbackUrl?: string;
     defaultValues: { email: defaultEmail ?? "", password: "", callbackUrl },
     mode: "onTouched",
   });
+
+  // Prefilled email (from a reset/verify/register redirect) → go straight to the password.
+  useEffect(() => {
+    form.setFocus(defaultEmail ? "password" : "email");
+  }, [form, defaultEmail]);
 
   const onSubmit = form.handleSubmit((values) =>
     startTransition(async () => {

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useWatch } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { ArrowRight, MailCheck } from "lucide-react";
 import { TextField } from "@/components/forms/fields";
@@ -9,9 +10,10 @@ import { SubmitButton } from "@/components/forms/submit-button";
 import { useActionForm } from "@/components/forms/use-action-form";
 import { Button } from "@/components/ui/button";
 import { registerSchema, type SelectablePlanKey } from "@/lib/validation/auth";
-import { registerAction } from "@/app/(auth)/actions";
+import { registerAction, resendVerificationAction } from "@/app/(auth)/actions";
 import { AuthHeading } from "./auth-card";
 import { PasswordField } from "./password-field";
+import { ResendButton } from "./resend-button";
 
 export function RegisterForm({ plan }: { plan?: SelectablePlanKey }) {
   const router = useRouter();
@@ -33,6 +35,7 @@ export function RegisterForm({ plan }: { plan?: SelectablePlanKey }) {
     },
   });
   const c = form.control;
+  const password = useWatch({ control: c, name: "password" });
 
   if (verifyEmail) {
     return (
@@ -47,9 +50,17 @@ export function RegisterForm({ plan }: { plan?: SelectablePlanKey }) {
             </>
           }
         />
-        <Button asChild className="h-10 w-full">
-          <Link href={`/login?email=${encodeURIComponent(verifyEmail)}`}>Go to sign in</Link>
-        </Button>
+        <div className="flex flex-col gap-2">
+          <Button asChild className="h-10 w-full">
+            <Link href={`/login?email=${encodeURIComponent(verifyEmail)}`}>Go to sign in</Link>
+          </Button>
+          <ResendButton
+            send={() => resendVerificationAction({ email: verifyEmail })}
+            successMessage="A new verification link is on its way."
+          >
+            Resend verification email
+          </ResendButton>
+        </div>
         <p className="mt-4 text-center text-xs text-muted-foreground">The link expires in 24 hours. Check your spam folder if it doesn&apos;t arrive.</p>
       </div>
     );
@@ -60,7 +71,7 @@ export function RegisterForm({ plan }: { plan?: SelectablePlanKey }) {
       <TextField control={c} name="name" label="Full name" autoComplete="name" placeholder="Ayesha Khan" />
       <TextField control={c} name="email" label="Work email" type="email" autoComplete="email" placeholder="you@company.com" />
       <PasswordField control={c} name="password" label="Password" autoComplete="new-password" showStrength />
-      <PasswordField control={c} name="confirmPassword" label="Confirm password" autoComplete="new-password" />
+      <PasswordField control={c} name="confirmPassword" label="Confirm password" autoComplete="new-password" matchValue={password} />
       <SubmitButton pending={pending} pendingText="Creating account…" className="h-10 w-full">
         Create account
         <ArrowRight />

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useWatch } from "react-hook-form";
 import { CheckCircle2 } from "lucide-react";
 import { SubmitButton } from "@/components/forms/submit-button";
 import { useActionForm } from "@/components/forms/use-action-form";
@@ -20,6 +21,7 @@ export function ResetPasswordForm({ token, email, mode }: { token: string; email
     successMessage: () => "",
     onSuccess: (data) => setDone(data),
   });
+  const password = useWatch({ control: form.control, name: "password" });
 
   if (done) {
     const reason = done.firstTime ? "password-set" : "password-reset";
@@ -56,7 +58,13 @@ export function ResetPasswordForm({ token, email, mode }: { token: string; email
         {/* Helps password managers associate the new password with the account. */}
         <input type="email" name="username" autoComplete="username" value={email} readOnly hidden />
         <PasswordField control={form.control} name="password" label="New password" autoComplete="new-password" showStrength autoFocus />
-        <PasswordField control={form.control} name="confirmPassword" label="Confirm new password" autoComplete="new-password" />
+        <PasswordField
+          control={form.control}
+          name="confirmPassword"
+          label="Confirm new password"
+          autoComplete="new-password"
+          matchValue={password}
+        />
         <SubmitButton pending={pending} pendingText="Saving…" className="h-10 w-full">
           {mode === "set" ? "Set password" : "Update password"}
         </SubmitButton>

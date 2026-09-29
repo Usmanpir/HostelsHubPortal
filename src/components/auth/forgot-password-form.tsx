@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { forgotPasswordSchema } from "@/lib/validation/auth";
 import { forgotPasswordAction } from "@/app/(auth)/actions";
 import { AuthHeading, FormAlert } from "./auth-card";
+import { ResendButton } from "./resend-button";
 
 export function ForgotPasswordForm({ defaultEmail }: { defaultEmail?: string }) {
   const [sent, setSent] = useState<string | null>(null);
@@ -38,12 +39,15 @@ export function ForgotPasswordForm({ defaultEmail }: { defaultEmail?: string }) 
           <Button asChild className="h-10 w-full">
             <Link href="/login">Back to sign in</Link>
           </Button>
+          <ResendButton send={() => forgotPasswordAction({ email: sent })} successMessage="We've sent another reset link.">
+            Resend link
+          </ResendButton>
           <Button type="button" variant="ghost" className="w-full" onClick={() => setSent(null)}>
             Use a different email
           </Button>
         </div>
         <FormAlert tone="info" className="mt-6">
-          Didn&apos;t get it? Check your spam folder, or wait a minute and try again.
+          Didn&apos;t get it? Check your spam folder — you can request another link after a minute.
         </FormAlert>
       </div>
     );
