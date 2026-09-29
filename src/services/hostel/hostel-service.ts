@@ -107,6 +107,15 @@ export async function getHostel(ctx: TenantContext, id: string) {
   return serialize({ ...hostel, occupancy: occupancy.overall, activeResidents });
 }
 
+async function assertOwnerInOrg(ctx: TenantContext, ownerId?: string) {
+  if (!ownerId) return;
+  const owner = await prisma.propertyOwner.findFirst({
+    where: { id: ownerId, organizationId: ctx.organizationId, archivedAt: null },
+    select: { id: true },
+  });
+  if (!owner) throw new NotFoundError("Owner");
+}
+
 async function assertManagerInOrg(ctx: TenantContext, managerStaffId?: string) {
   if (!managerStaffId) return;
   const staff = await prisma.staff.findFirst({
@@ -120,6 +129,7 @@ export async function createHostel(ctx: TenantContext, raw: HostelInput) {
   requirePermission(ctx, "hostels.manage");
   const input = parseInput(hostelSchema, raw);
   await assertManagerInOrg(ctx, input.managerStaffId);
+  await assertOwnerInOrg(ctx, input.ownerId);
   await assertWithinLimit(prisma, ctx.organizationId, "hostels");
 
   const existing = await prisma.hostel.findUnique({
@@ -130,7 +140,13 @@ export async function createHostel(ctx: TenantContext, raw: HostelInput) {
 
   return prisma.$transaction(async (tx) => {
     const hostel = await tx.hostel.create({
-      data: { ...input, organizationId: ctx.organizationId, managerStaffId: input.managerStaffId ?? null },
+      data: {
+        ...input,
+        organizationId: ctx.organizationId,
+        managerStaffId: input.managerStaffId ?? null,
+        ownerId: input.ownerId ?? null,
+        managementFeePercent: input.managementFeePercent ?? null,
+      },
     });
     // Members restricted to specific hostels automatically get the one they create.
     if (!ctx.allHostels) {
@@ -146,6 +162,7 @@ export async function updateHostel(ctx: TenantContext, id: string, raw: HostelIn
   assertHostelAccess(ctx, id);
   const input = parseInput(hostelSchema, raw);
   await assertManagerInOrg(ctx, input.managerStaffId);
+  await assertOwnerInOrg(ctx, input.ownerId);
   const before = await prisma.hostel.findFirst({ where: { id, organizationId: ctx.organizationId } });
   if (!before) throw new NotFoundError("Hostel");
   if (before.status === "ARCHIVED") throw new BusinessRuleError("Restore the hostel before editing it.");
@@ -161,7 +178,12 @@ export async function updateHostel(ctx: TenantContext, id: string, raw: HostelIn
   return prisma.$transaction(async (tx) => {
     const hostel = await tx.hostel.update({
       where: { id },
-      data: { ...input, managerStaffId: input.managerStaffId ?? null },
+      data: {
+        ...input,
+        managerStaffId: input.managerStaffId ?? null,
+        ownerId: input.ownerId ?? null,
+        managementFeePercent: input.managementFeePercent ?? null,
+      },
     });
     await audit(actorOf(ctx), { action: "hostel.updated", entityType: "Hostel", entityId: id, before, after: hostel }, tx);
     return serialize(hostel);

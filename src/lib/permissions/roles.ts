@@ -51,6 +51,8 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
       "staff.view",
       "reports.view",
       "reports.financial",
+      "owners.view",
+      "deals.view",
     ],
   },
   {
@@ -126,6 +128,23 @@ export const ROLE_TEMPLATES: RoleTemplate[] = [
       "visitors.view",
       "requests.view",
       "requests.manage",
+    ],
+  },
+  {
+    key: "AGENT",
+    name: "Agent",
+    description: "Property dealer agent: listings, leads, viewings and deals.",
+    defaultAllHostels: true,
+    permissions: [
+      "dashboard.view",
+      "hostels.view",
+      "rooms.view",
+      "listings.view",
+      "listings.manage",
+      "leads.view",
+      "leads.manage",
+      "deals.view",
+      "announcements.view",
     ],
   },
   {

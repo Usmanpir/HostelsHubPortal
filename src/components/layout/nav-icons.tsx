@@ -1,6 +1,8 @@
 import {
   BarChart3,
   Building2,
+  Handshake,
+  Landmark,
   LayoutDashboard,
   ListChecks,
   Settings,
@@ -24,4 +26,6 @@ export const NAV_ICONS: Record<NavIcon, LucideIcon> = {
   reports: BarChart3,
   settings: Settings,
   audit: ShieldCheck,
+  owners: Landmark,
+  realEstate: Handshake,
 };

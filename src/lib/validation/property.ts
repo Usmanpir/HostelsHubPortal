@@ -3,7 +3,11 @@ import { optionalEmail, optionalMoney, optionalPhone, optionalText, requiredText
 
 const hostelTypes = ["BOYS", "GIRLS", "FAMILY", "STUDENT", "WORKING_PROFESSIONALS", "MIXED", "OTHER"] as const;
 const hostelGenders = ["MALE", "FEMALE", "MIXED"] as const;
-const roomTypes = ["SINGLE", "DOUBLE", "TRIPLE", "FOUR_BED", "SHARED", "CUSTOM"] as const;
+const roomTypes = ["SINGLE", "DOUBLE", "TRIPLE", "FOUR_BED", "SHARED", "CUSTOM", "STUDIO", "APARTMENT", "HOUSE", "PORTION", "SHOP", "OFFICE", "WAREHOUSE"] as const;
+/** Unit types used for whole-unit rentals (rental mode WHOLE_UNIT). */
+export const WHOLE_UNIT_TYPES = ["STUDIO", "APARTMENT", "HOUSE", "PORTION", "SHOP", "OFFICE", "WAREHOUSE"] as const;
+const propertyKinds = ["HOSTEL", "HOUSE", "APARTMENT_BUILDING", "APARTMENT", "COMMERCIAL", "PLOT", "OTHER"] as const;
+const rentalModes = ["BY_BED", "WHOLE_UNIT"] as const;
 const roomStatuses = ["AVAILABLE", "PARTIALLY_OCCUPIED", "FULL", "MAINTENANCE", "RESERVED", "INACTIVE"] as const;
 const bedStatuses = ["AVAILABLE", "OCCUPIED", "RESERVED", "MAINTENANCE", "INACTIVE"] as const;
 
@@ -36,6 +40,13 @@ export const hostelSchema = z.object({
   amenities: stringList,
   rules: optionalText(5000),
   status: z.enum(["ACTIVE", "INACTIVE"]).default("ACTIVE"),
+  kind: z.enum(propertyKinds).default("HOSTEL"),
+  rentalMode: z.enum(rentalModes).default("BY_BED"),
+  ownerId: optionalText(64),
+  managementFeePercent: z
+    .union([z.literal("").transform(() => undefined), z.coerce.number().min(0).max(100)])
+    .optional()
+    .nullable(),
   defaultBedRent: optionalMoney,
   defaultDeposit: optionalMoney,
   admissionFee: optionalMoney,
@@ -62,6 +73,10 @@ export const roomSchema = z.object({
   rent: optionalMoney,
   description: optionalText(1000),
   amenities: stringList,
+  bedrooms: z.union([z.literal("").transform(() => undefined), z.coerce.number().int().min(0).max(50)]).optional().nullable(),
+  bathrooms: z.union([z.literal("").transform(() => undefined), z.coerce.number().int().min(0).max(50)]).optional().nullable(),
+  areaSqft: z.union([z.literal("").transform(() => undefined), z.coerce.number().int().min(0).max(10_000_000)]).optional().nullable(),
+  furnished: z.boolean().default(false),
   /** Create this many beds immediately (defaults to capacity on create). */
   createBeds: z.coerce.number().int().min(0).max(50).optional(),
 });
@@ -96,5 +111,7 @@ export type BedUpdateInput = z.input<typeof bedUpdateSchema>;
 
 export const HOSTEL_TYPES = hostelTypes;
 export const ROOM_TYPES = roomTypes;
+export const PROPERTY_KINDS = propertyKinds;
+export const RENTAL_MODES = rentalModes;
 export const ROOM_STATUSES = roomStatuses;
 export const BED_STATUSES = bedStatuses;

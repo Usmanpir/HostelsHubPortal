@@ -104,6 +104,11 @@ export const notificationEventLabels: Record<NotificationType, { label: string; 
   CHECK_IN: { label: "Check-in", description: "When a resident checks in." },
   CHECK_OUT: { label: "Check-out", description: "When a resident checks out." },
   REQUEST_UPDATED: { label: "Resident requests", description: "Room change and leave request decisions." },
+  LEASE_EXPIRING: { label: "Lease expiry", description: "Reminders before a lease ends." },
+  RENT_INCREASED: { label: "Rent increases", description: "Scheduled rent increments applied to a lease." },
+  LEAD_RECEIVED: { label: "New leads", description: "Inquiries from the public listings page and new leads." },
+  VIEWING_SCHEDULED: { label: "Viewings", description: "Property viewings scheduled or changed." },
+  OWNER_PAYOUT: { label: "Owner payouts", description: "Owner statements and payouts." },
   SYSTEM: { label: "System messages", description: "Account, billing and security notices." },
 };
 

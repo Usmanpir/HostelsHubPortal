@@ -305,6 +305,10 @@ async function organizationActingContext(tx: Tx, row: OnlinePaymentRow): Promise
       brandName: true,
       primaryColor: true,
       onboardingCompletedAt: true,
+      businessType: true,
+      ownersEnabled: true,
+      dealerEnabled: true,
+      publicListingsEnabled: true,
     },
   });
   const userId = await actingUserId(row, tx);

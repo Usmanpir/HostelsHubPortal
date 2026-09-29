@@ -21,7 +21,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     }),
     getSubscription(prisma, ctx.organizationId),
   ]);
-  const messages = getMessages(ctx.organization.locale);
+  const messages = getMessages(ctx.organization.locale, ctx.organization.businessType);
   const org = ctx.organization;
   const brandColor = org.primaryColor && /^#[0-9a-f]{6}$/i.test(org.primaryColor) ? org.primaryColor : null;
 
@@ -61,11 +61,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         locale: org.locale,
         permissions: [...ctx.permissions],
         activeHostelId: ctx.activeHostelId,
+        businessType: org.businessType,
+        modules: { owners: org.ownersEnabled, dealer: org.dealerEnabled, publicListings: org.publicListingsEnabled },
       }}
     >
       {brandColor ? <style>{`:root{--brand:${brandColor}}`}</style> : null}
       <AppShell
-        nav={filterNavigation(ctx.permissions)}
+        nav={filterNavigation(ctx.permissions, { owners: org.ownersEnabled, dealer: org.dealerEnabled })}
         messages={messages}
         brand={{ name: org.brandName || org.name || APP_NAME, logoUrl: org.logoFileId ? `/api/files/${org.logoFileId}` : null }}
         user={{ name: ctx.userName, email: ctx.userEmail, roleName: ctx.roleName }}

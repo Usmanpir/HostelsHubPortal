@@ -78,6 +78,26 @@ export const PERMISSION_GROUPS = [
     ],
   },
   {
+    key: "owners",
+    label: "Owners",
+    permissions: [
+      { key: "owners.view", label: "View property owners and statements" },
+      { key: "owners.manage", label: "Manage owners and record owner payouts" },
+    ],
+  },
+  {
+    key: "realEstate",
+    label: "Sales & leasing",
+    permissions: [
+      { key: "listings.view", label: "View listings" },
+      { key: "listings.manage", label: "Create, edit and publish listings" },
+      { key: "leads.view", label: "View leads and viewings" },
+      { key: "leads.manage", label: "Manage leads and schedule viewings" },
+      { key: "deals.view", label: "View deals and commissions" },
+      { key: "deals.manage", label: "Manage deals and commissions" },
+    ],
+  },
+  {
     key: "settings",
     label: "Settings",
     permissions: [

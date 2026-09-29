@@ -47,6 +47,122 @@ enum BillingInterval {
   YEARLY
 }
 
+/// What the organization mainly does; drives terminology (Hostel/Room/Resident vs Property/Unit/Tenant).
+enum BusinessType {
+  HOSTELS
+  PROPERTY_MANAGEMENT
+  REAL_ESTATE
+  MIXED
+}
+
+enum PropertyKind {
+  HOSTEL
+  HOUSE
+  APARTMENT_BUILDING
+  APARTMENT
+  COMMERCIAL
+  PLOT
+  OTHER
+}
+
+/// BY_BED: rooms hold several beds rented individually (hostels, PGs).
+/// WHOLE_UNIT: each unit (flat, house, shop) is leased to one tenant.
+enum RentalMode {
+  BY_BED
+  WHOLE_UNIT
+}
+
+enum OwnerPayoutStatus {
+  PENDING
+  PAID
+  CANCELLED
+}
+
+enum ListingPurpose {
+  SALE
+  RENT
+}
+
+enum ListingStatus {
+  DRAFT
+  ACTIVE
+  UNDER_OFFER
+  SOLD
+  RENTED
+  ARCHIVED
+}
+
+enum ListingPropertyType {
+  HOUSE
+  APARTMENT
+  PORTION
+  ROOM
+  HOSTEL_BED
+  PLOT
+  SHOP
+  OFFICE
+  WAREHOUSE
+  BUILDING
+  FARMHOUSE
+  OTHER
+}
+
+enum AreaUnit {
+  SQFT
+  SQM
+  SQYD
+  MARLA
+  KANAL
+}
+
+enum LeadSource {
+  WEBSITE
+  WALK_IN
+  PHONE
+  WHATSAPP
+  REFERRAL
+  PORTAL
+  SOCIAL
+  OTHER
+}
+
+enum LeadStage {
+  NEW
+  CONTACTED
+  VIEWING
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum LeadActivityType {
+  NOTE
+  CALL
+  WHATSAPP
+  EMAIL
+  MEETING
+  STAGE_CHANGE
+}
+
+enum ViewingStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum DealType {
+  SALE
+  RENT
+}
+
+enum DealStage {
+  OPEN
+  AGREEMENT
+  CLOSED_WON
+  CLOSED_LOST
+}
+
 enum HostelType {
   BOYS
   GIRLS
@@ -76,6 +192,14 @@ enum RoomType {
   FOUR_BED
   SHARED
   CUSTOM
+  // Whole-unit types (rental mode WHOLE_UNIT)
+  STUDIO
+  APARTMENT
+  HOUSE
+  PORTION
+  SHOP
+  OFFICE
+  WAREHOUSE
 }
 
 enum RoomStatus {
@@ -337,6 +461,11 @@ enum NotificationType {
   CHECK_IN
   CHECK_OUT
   REQUEST_UPDATED
+  LEASE_EXPIRING
+  RENT_INCREASED
+  LEAD_RECEIVED
+  VIEWING_SCHEDULED
+  OWNER_PAYOUT
   SYSTEM
 }
 
@@ -383,6 +512,12 @@ model User {
   visitorsRecorded     Visitor[]
   leavesReviewed       StaffLeave[]
   requestsReviewed     ResidentRequest[]        @relation("RequestReviewedBy")
+  ownerPayoutsCreated  OwnerPayout[]            @relation("OwnerPayoutCreatedBy")
+  listingsAsAgent      Listing[]                @relation("ListingAgent")
+  leadsAssigned        Lead[]                   @relation("LeadAssignee")
+  leadActivities       LeadActivity[]           @relation("LeadActivityUser")
+  viewingsAsAgent      Viewing[]                @relation("ViewingAgent")
+  dealsAsAgent         Deal[]                   @relation("DealAgent")
   onlinePayments       OnlinePayment[]          @relation("OnlinePaymentInitiatedBy")
   gatewayConfigsUpdated PaymentGatewayConfig[]  @relation("GatewayConfigUpdatedBy")
 }
@@ -459,11 +594,25 @@ model Organization {
   // { "email": true, "sms": false, "events": { "PAYMENT_RECEIVED": true, ... } }
   notificationSettings Json @default("{}")
 
+  // Product modules
+  businessType           BusinessType @default(HOSTELS)
+  ownersEnabled          Boolean      @default(false)
+  dealerEnabled          Boolean      @default(false)
+  publicListingsEnabled  Boolean      @default(false)
+  publicProfileIntro     String?
+
   onboardingCompletedAt DateTime?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
   deletedAt             DateTime?
 
+  propertyOwners    PropertyOwner[]
+  ownerPayouts      OwnerPayout[]
+  listings          Listing[]
+  leads             Lead[]
+  leadActivities    LeadActivity[]
+  viewings          Viewing[]
+  deals             Deal[]
   logo              StoredFile?          @relation("OrganizationLogo", fields: [logoFileId], references: [id], onDelete: SetNull)
   members           OrganizationMember[]
   roles             Role[]
@@ -700,6 +849,11 @@ model Hostel {
   amenities      String[]
   rules          String?
   status         HostelStatus @default(ACTIVE)
+  kind           PropertyKind @default(HOSTEL)
+  rentalMode     RentalMode   @default(BY_BED)
+  ownerId        String?
+  /// Management fee (% of rent collected) for this property; overrides the owner's default.
+  managementFeePercent Decimal? @db.Decimal(5, 2)
 
   // Rent configuration
   defaultBedRent   Decimal? @db.Decimal(12, 2)
@@ -715,6 +869,8 @@ model Hostel {
 
   organization     Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   manager          Staff?                  @relation("HostelManager", fields: [managerStaffId], references: [id], onDelete: SetNull)
+  owner            PropertyOwner?          @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  listings         Listing[]
   floors           Floor[]
   rooms            Room[]
   beds             Bed[]
@@ -735,6 +891,7 @@ model Hostel {
 
   @@unique([organizationId, code])
   @@index([organizationId, status])
+  @@index([ownerId])
 }
 
 model Floor {
@@ -768,6 +925,11 @@ model Room {
   rent           Decimal?   @db.Decimal(12, 2)
   description    String?
   amenities      String[]
+  // Unit details (whole-unit rentals)
+  bedrooms       Int?
+  bathrooms      Int?
+  areaSqft       Int?
+  furnished      Boolean    @default(false)
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
   archivedAt     DateTime?
@@ -775,6 +937,7 @@ model Room {
   organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   hostel       Hostel               @relation(fields: [hostelId], references: [id], onDelete: Cascade)
   floor        Floor                @relation(fields: [floorId], references: [id], onDelete: Restrict)
+  listings     Listing[]
   beds         Bed[]
   assignments  ResidentAssignment[]
   maintenance  MaintenanceRequest[]
@@ -911,6 +1074,14 @@ model ResidentAssignment {
   meterReading     String?
   endReason        String?
   notes            String?
+  // Lease terms (mainly whole-unit rentals; optional for beds)
+  leaseEndDate            DateTime? @db.Date
+  noticePeriodDays        Int?
+  advanceRent             Decimal?  @db.Decimal(12, 2)
+  rentIncrementPercent    Decimal?  @db.Decimal(5, 2)
+  incrementIntervalMonths Int?
+  nextIncrementDate       DateTime? @db.Date
+  leaseTerms              String?
   previousAssignmentId String?      @unique
   createdById      String?
   createdAt        DateTime         @default(now())
@@ -931,6 +1102,225 @@ model ResidentAssignment {
   @@index([bedId])
   @@index([organizationId, checkInDate])
   @@index([organizationId, checkOutDate])
+  @@index([organizationId, leaseEndDate])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Landlords / property owners (management on behalf of owners)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model PropertyOwner {
+  id                String    @id @default(cuid())
+  organizationId    String
+  ownerCode         String
+  name              String
+  phone             String?
+  email             String?
+  idNumber          String?
+  address           String?
+  bankName          String?
+  bankAccountTitle  String?
+  bankAccountNumber String?
+  /// Default management fee (% of rent collected) for this owner's properties.
+  commissionPercent Decimal   @default(0) @db.Decimal(5, 2)
+  notes             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  archivedAt        DateTime?
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  properties   Hostel[]
+  payouts      OwnerPayout[]
+  listings     Listing[]
+
+  @@unique([organizationId, ownerCode])
+  @@index([organizationId, name])
+}
+
+model OwnerPayout {
+  id             String            @id @default(cuid())
+  organizationId String
+  ownerId        String
+  periodStart    DateTime          @db.Date
+  periodEnd      DateTime          @db.Date
+  rentCollected  Decimal           @db.Decimal(12, 2)
+  expenses       Decimal           @default(0) @db.Decimal(12, 2)
+  commission     Decimal           @default(0) @db.Decimal(12, 2)
+  adjustments    Decimal           @default(0) @db.Decimal(12, 2)
+  netPayable     Decimal           @db.Decimal(12, 2)
+  status         OwnerPayoutStatus @default(PENDING)
+  paidAt         DateTime?         @db.Date
+  paymentMethod  PaymentMethod?
+  reference      String?
+  notes          String?
+  createdById    String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  owner        PropertyOwner @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  createdBy    User?         @relation("OwnerPayoutCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, periodStart])
+  @@index([ownerId, periodStart])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Real estate dealing: listings, leads, viewings, deals
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Listing {
+  id              String              @id @default(cuid())
+  organizationId  String
+  code            String
+  slug            String
+  title           String
+  purpose         ListingPurpose
+  propertyType    ListingPropertyType
+  status          ListingStatus       @default(DRAFT)
+  price           Decimal             @db.Decimal(14, 2)
+  priceNegotiable Boolean             @default(false)
+  areaValue       Decimal?            @db.Decimal(10, 2)
+  areaUnit        AreaUnit?
+  bedrooms        Int?
+  bathrooms       Int?
+  furnished       Boolean             @default(false)
+  address         String?
+  locality        String?
+  city            String?
+  description     String?
+  features        String[]
+  /// Linked managed property / unit, when the listing is one of our own.
+  hostelId        String?
+  roomId          String?
+  ownerId         String?
+  agentUserId     String?
+  coverFileId     String?             @unique
+  isPublished     Boolean             @default(false)
+  publishedAt     DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  archivedAt      DateTime?
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  hostel       Hostel?        @relation(fields: [hostelId], references: [id], onDelete: SetNull)
+  room         Room?          @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  owner        PropertyOwner? @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  agent        User?          @relation("ListingAgent", fields: [agentUserId], references: [id], onDelete: SetNull)
+  cover        StoredFile?    @relation("ListingCover", fields: [coverFileId], references: [id], onDelete: SetNull)
+  photos       StoredFile[]   @relation("ListingPhotos")
+  leads        Lead[]
+  viewings     Viewing[]
+  deals        Deal[]
+
+  @@unique([organizationId, code])
+  @@unique([organizationId, slug])
+  @@index([organizationId, status, purpose])
+  @@index([organizationId, isPublished])
+}
+
+model Lead {
+  id                String         @id @default(cuid())
+  organizationId    String
+  code              String
+  name              String
+  phone             String?
+  email             String?
+  source            LeadSource     @default(OTHER)
+  stage             LeadStage      @default(NEW)
+  interest          ListingPurpose?
+  listingId         String?
+  budgetMin         Decimal?       @db.Decimal(14, 2)
+  budgetMax         Decimal?       @db.Decimal(14, 2)
+  preferredLocation String?
+  message           String?
+  notes             String?
+  assignedUserId    String?
+  lostReason        String?
+  nextFollowUpAt    DateTime?
+  lastContactedAt   DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  archivedAt        DateTime?
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  listing      Listing?       @relation(fields: [listingId], references: [id], onDelete: SetNull)
+  assignedTo   User?          @relation("LeadAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  activities   LeadActivity[]
+  viewings     Viewing[]
+  deals        Deal[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, stage])
+  @@index([organizationId, assignedUserId])
+  @@index([organizationId, nextFollowUpAt])
+}
+
+model LeadActivity {
+  id             String           @id @default(cuid())
+  organizationId String
+  leadId         String
+  userId         String?
+  type           LeadActivityType
+  body           String
+  createdAt      DateTime         @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lead         Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  user         User?        @relation("LeadActivityUser", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([leadId, createdAt])
+}
+
+model Viewing {
+  id             String        @id @default(cuid())
+  organizationId String
+  leadId         String
+  listingId      String
+  scheduledAt    DateTime
+  status         ViewingStatus @default(SCHEDULED)
+  agentUserId    String?
+  feedback       String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lead         Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  listing      Listing      @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  agent        User?        @relation("ViewingAgent", fields: [agentUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, scheduledAt])
+  @@index([leadId])
+}
+
+model Deal {
+  id                String    @id @default(cuid())
+  organizationId    String
+  code              String
+  type              DealType
+  stage             DealStage @default(OPEN)
+  listingId         String?
+  leadId            String?
+  clientName        String
+  agreedAmount      Decimal   @db.Decimal(14, 2)
+  commissionPercent Decimal   @default(0) @db.Decimal(5, 2)
+  commissionAmount  Decimal   @default(0) @db.Decimal(14, 2)
+  agentUserId       String?
+  commissionPaidAt  DateTime? @db.Date
+  expectedCloseDate DateTime? @db.Date
+  closedAt          DateTime?
+  notes             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  listing      Listing?     @relation(fields: [listingId], references: [id], onDelete: SetNull)
+  lead         Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  agent        User?        @relation("DealAgent", fields: [agentUserId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, code])
+  @@index([organizationId, stage])
+  @@index([organizationId, agentUserId])
 }
 
 model ResidentRequest {
@@ -1479,6 +1869,7 @@ model StoredFile {
   // "resident-document" | "staff-document" | "logo" | "expense-receipt" | "maintenance-photo" | ...
   purpose        String
   maintenanceRequestId String?
+  listingId      String?
   uploadedById   String?
   createdAt      DateTime  @default(now())
   deletedAt      DateTime?
@@ -1487,6 +1878,8 @@ model StoredFile {
   uploadedBy         User?               @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
   maintenanceRequest MaintenanceRequest? @relation("MaintenancePhotos", fields: [maintenanceRequestId], references: [id], onDelete: SetNull)
   organizationLogo   Organization?       @relation("OrganizationLogo")
+  listingCover       Listing?            @relation("ListingCover")
+  listing            Listing?            @relation("ListingPhotos", fields: [listingId], references: [id], onDelete: SetNull)
   residentPhoto      Resident?           @relation("ResidentPhoto")
   staffPhoto         Staff?              @relation("StaffPhoto")
   expenseReceipt     Expense?            @relation("ExpenseReceipt")

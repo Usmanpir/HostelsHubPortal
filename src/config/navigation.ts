@@ -11,7 +11,12 @@ export type NavIcon =
   | "operations"
   | "reports"
   | "settings"
-  | "audit";
+  | "audit"
+  | "owners"
+  | "realEstate";
+
+/** Optional product modules an organization can switch on (Settings → Modules). */
+export type NavModules = { owners: boolean; dealer: boolean };
 
 export type NavLabel = keyof Messages["nav"];
 
@@ -67,6 +72,8 @@ type NavSectionDef = {
   hiddenWith?: Permission;
   /** Extra route prefixes that highlight this entry. */
   match?: string[];
+  /** Only shown when this module is enabled for the organization. */
+  module?: keyof NavModules;
   items?: NavLeafDef[];
 };
 
@@ -132,6 +139,26 @@ const NAVIGATION: NavSectionDef[] = [
       { label: "announcements", href: "/operations/announcements", permission: "announcements.view" },
     ],
   },
+  {
+    label: "owners",
+    icon: "owners",
+    module: "owners",
+    items: [
+      { label: "allOwners", href: "/owners", permission: "owners.view" },
+      { label: "ownerPayouts", href: "/owners/payouts", permission: "owners.view" },
+    ],
+  },
+  {
+    label: "realEstate",
+    icon: "realEstate",
+    module: "dealer",
+    items: [
+      { label: "listings", href: "/listings", permission: "listings.view" },
+      { label: "leads", href: "/leads", permission: "leads.view" },
+      { label: "viewings", href: "/leads/viewings", permission: "leads.view" },
+      { label: "deals", href: "/deals", permission: "deals.view" },
+    ],
+  },
   // The audit log is linked from the Reports hub; members who can audit but not see reports get it directly.
   { label: "reports", icon: "reports", href: "/reports", permission: "reports.view", match: ["/audit-log"] },
   { label: "auditLog", icon: "audit", href: "/audit-log", permission: "audit.view", hiddenWith: "reports.view" },
@@ -145,8 +172,12 @@ function resolveLeaf(leaf: NavLeafDef, permissions: ReadonlySet<string>): NavLea
   return { label: leaf.label, href, match: [...new Set([href, ...tabs.map((t) => t.href)])] };
 }
 
-export function filterNavigation(permissions: ReadonlySet<string>): NavSection[] {
+export function filterNavigation(
+  permissions: ReadonlySet<string>,
+  modules: NavModules = { owners: false, dealer: false },
+): NavSection[] {
   return NAVIGATION.flatMap((section): NavSection[] => {
+    if (section.module && !modules[section.module]) return [];
     if (section.items) {
       const items = section.items.map((i) => resolveLeaf(i, permissions)).filter((i): i is NavLeaf => i !== null);
       return items.length ? [{ label: section.label, icon: section.icon, items }] : [];

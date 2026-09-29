@@ -15,8 +15,8 @@ import { cn } from "@/lib/utils";
  */
 export function SectionTabs({ group, className }: { group: TabGroupKey; className?: string }) {
   const pathname = usePathname();
-  const { permissions, locale } = useOrg();
-  const labels = getMessages(locale).nav;
+  const { permissions, locale, businessType } = useOrg();
+  const labels = getMessages(locale, businessType).nav;
   const tabs = useMemo(() => allowedTabs(group, new Set(permissions)), [group, permissions]);
   if (tabs.length < 2) return null;
 

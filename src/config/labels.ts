@@ -62,9 +62,28 @@ export const roomTypeLabels: Record<RoomType, string> = {
   FOUR_BED: "Four bed",
   SHARED: "Shared",
   CUSTOM: "Custom",
+  STUDIO: "Studio",
+  APARTMENT: "Apartment / flat",
+  HOUSE: "House",
+  PORTION: "Portion",
+  SHOP: "Shop",
+  OFFICE: "Office",
+  WAREHOUSE: "Warehouse",
 };
 
-export const roomTypeCapacity: Partial<Record<RoomType, number>> = { SINGLE: 1, DOUBLE: 2, TRIPLE: 3, FOUR_BED: 4 };
+export const roomTypeCapacity: Partial<Record<RoomType, number>> = {
+  SINGLE: 1,
+  DOUBLE: 2,
+  TRIPLE: 3,
+  FOUR_BED: 4,
+  STUDIO: 1,
+  APARTMENT: 1,
+  HOUSE: 1,
+  PORTION: 1,
+  SHOP: 1,
+  OFFICE: 1,
+  WAREHOUSE: 1,
+};
 
 export const roomStatusLabels: Record<RoomStatus, string> = {
   AVAILABLE: "Available",

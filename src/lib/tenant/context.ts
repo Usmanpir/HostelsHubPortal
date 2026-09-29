@@ -1,6 +1,7 @@
 import type { DbClient } from "@/lib/db/prisma";
 import { ForbiddenError, NotFoundError, UnauthenticatedError } from "@/lib/errors";
 import { isPermission, type Permission } from "@/lib/permissions/catalog";
+import type { BusinessType } from "@/generated/prisma/enums";
 
 /**
  * Everything a service needs to authorize a request. It is always built on
@@ -24,6 +25,10 @@ export type TenantContext = {
     brandName: string | null;
     primaryColor: string | null;
     onboardingCompletedAt: Date | null;
+    businessType: BusinessType;
+    ownersEnabled: boolean;
+    dealerEnabled: boolean;
+    publicListingsEnabled: boolean;
   };
   memberId: string;
   roleId: string;
@@ -77,6 +82,10 @@ export async function loadTenantContext(db: DbClient, input: LoadContextInput): 
           brandName: true,
           primaryColor: true,
           onboardingCompletedAt: true,
+          businessType: true,
+          ownersEnabled: true,
+          dealerEnabled: true,
+          publicListingsEnabled: true,
         },
       },
       role: { include: { permissions: true } },
