@@ -1,4 +1,5 @@
 import NextAuth, { CredentialsSignin } from "next-auth";
+import { cookies } from "next/headers";
 import Credentials from "next-auth/providers/credentials";
 import { z } from "zod";
 import { authConfig } from "@/lib/auth/auth.config";
@@ -106,3 +107,30 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
 });
+
+/** Auth.js session cookie (`__Secure-` prefixed on HTTPS, chunked as `.0`, `.1`… when large). */
+const SESSION_COOKIE = /authjs\.session-token(\.\d+)?$/;
+
+async function sessionCookieValue() {
+  const jar = await cookies();
+  return jar
+    .getAll()
+    .filter((c) => SESSION_COOKIE.test(c.name))
+    .map((c) => c.value)
+    .join("");
+}
+
+/**
+ * Email + password sign-in without a redirect, for server actions. Wrong
+ * credentials throw a `CredentialsSignin`, but server-side failures (e.g. a
+ * missing AUTH_SECRET) make Auth.js return a bare 500 that `signIn` doesn't
+ * surface — so confirm a new session cookie was actually issued.
+ */
+export async function signInWithPassword(email: string, password: string) {
+  const before = await sessionCookieValue();
+  await signIn("credentials", { email, password, redirect: false });
+  const after = await sessionCookieValue();
+  if (!after || after === before) {
+    throw new Error("Auth.js did not issue a session cookie — check AUTH_SECRET and the [auth][error] server logs");
+  }
+}

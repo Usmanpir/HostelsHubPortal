@@ -2,7 +2,7 @@
 
 import { after } from "next/server";
 import { AuthError } from "next-auth";
-import { auth, signIn, signOut } from "@/auth";
+import { auth, signInWithPassword, signOut } from "@/auth";
 import { runAction, type ActionResult } from "@/lib/actions";
 import { enforceRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
 import { normalizeError } from "@/lib/errors";
@@ -60,7 +60,7 @@ export async function loginAction(raw: LoginInput): Promise<LoginResult> {
   if (!parsed.success) return { ok: false, reason: "invalid_credentials", error: "Enter your email and password." };
   const { email, password, callbackUrl } = parsed.data;
   try {
-    await signIn("credentials", { email, password, redirect: false });
+    await signInWithPassword(email, password);
   } catch (error) {
     return loginFailure(error);
   }
@@ -85,7 +85,7 @@ export async function registerAction(raw: RegisterInput): Promise<ActionResult<R
     const user = await registerUser(raw, meta);
     if (user.verificationRequired) return { status: "verify_email", email: user.email };
     try {
-      await signIn("credentials", { email: user.email, password: String(raw.password), redirect: false });
+      await signInWithPassword(user.email, String(raw.password));
     } catch (error) {
       // The account exists; let the user sign in by hand rather than failing the signup.
       console.error("[auth] sign-in after registration failed", error);

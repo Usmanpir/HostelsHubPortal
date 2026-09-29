@@ -1,6 +1,6 @@
 "use server";
 
-import { signIn, signOut } from "@/auth";
+import { signInWithPassword, signOut } from "@/auth";
 import { runAction } from "@/lib/actions";
 import { getSessionUser } from "@/lib/auth/session";
 import { UnauthenticatedError } from "@/lib/errors";
@@ -30,7 +30,7 @@ export async function inviteSignupAction(input: InviteSignupInput) {
     const { organizationId } = await acceptInvitation(user.id, String(input.token));
     await setActiveOrganizationCookie(organizationId);
     try {
-      await signIn("credentials", { email: user.email, password: String(input.password), redirect: false });
+      await signInWithPassword(user.email, String(input.password));
     } catch (error) {
       console.error("[invite] sign-in after signup failed", error);
       return { next: `/login?reason=registered&email=${encodeURIComponent(user.email)}` };
