@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { defineConfig, env } from "prisma/config";
+import { defineConfig } from "prisma/config";
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
@@ -10,7 +10,9 @@ export default defineConfig({
   datasource: {
     // CLI only (migrations, studio). Prefer the direct connection when the host
     // provides one (Neon's Vercel integration sets DATABASE_URL_UNPOOLED); the
-    // app itself always uses the pooled DATABASE_URL.
-    url: process.env.DATABASE_URL_UNPOOLED || env("DATABASE_URL"),
+    // app itself always uses the pooled DATABASE_URL. Read process.env directly
+    // rather than env(), which throws when unset: `prisma generate` runs on
+    // `npm install` (postinstall) and doesn't need a database.
+    url: process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL || "",
   },
 });
